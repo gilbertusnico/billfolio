@@ -90,18 +90,6 @@ export default function InvoicePreview({
               {initial}
             </div>
           )}
-          <p
-            className="mt-3 text-base font-extrabold tracking-tight"
-            style={{ color: template.companyNameColor }}
-          >
-            {companyName}
-          </p>
-          {profile.email && <p className="mt-0.5 text-xs text-slate-500">{profile.email}</p>}
-          {profile.address && (
-            <p className="mt-0.5 max-w-[220px] whitespace-pre-line text-xs leading-relaxed text-slate-500">
-              {profile.address}
-            </p>
-          )}
         </div>
         <div className="text-right">
           <p
