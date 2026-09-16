@@ -260,6 +260,12 @@ export default function InvoiceBuilder() {
       );
       return null;
     }
+    if (status === "PENDING" && validItems.some((it) => it.description.trim() === "")) {
+      setFormError(
+        "Fill in a description for every line item — Pending invoices can't have empty descriptions."
+      );
+      return null;
+    }
     setFormError(null);
     const existing = id ? data.invoices.find((i) => i.id === id) : undefined;
     const client = data.clients.find((c) => c.id === clientId) ?? null;
