@@ -1,0 +1,239 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-heading: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* Classic Professional — slate palette, blue-600 primary (explicit user choice, overrides MASTER.md defaults) */
+  --color-primary: oklch(0.546 0.245 262.881);      /* blue-600 */
+  --color-primary-hover: oklch(0.488 0.243 264.376); /* blue-700 */
+  --color-on-primary: oklch(1 0 0);
+  --color-secondary: oklch(0.446 0.043 257.281);    /* slate-600 */
+  --color-accent: oklch(0.596 0.1274 163.23);       /* emerald-600 */
+  --color-background: oklch(0.9842 0.0034 247.86);  /* slate-50 */
+  --color-foreground: oklch(0.208 0.042 265.755);   /* slate-900 */
+  --color-muted: oklch(0.968 0.002 247.839);        /* slate-100 */
+  --color-border: oklch(0.929 0.013 255.508);       /* slate-200 */
+  --color-destructive: oklch(0.5771 0.2152 27.33);  /* red-600 */
+  --color-ring: oklch(0.546 0.245 262.881);
+
+  --animate-fade-in: fade-in 0.4s ease-out both;
+  --animate-slide-up: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-toast-in: toast-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-scale-in: scale-in 0.18s ease-out both;
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slide-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateY(12px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes scale-in {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+  }
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  ::selection {
+    background: oklch(0.9 0.07 262.881);
+    color: oklch(0.16 0.03 262);
+  }
+}
+
+@layer components {
+  .input {
+    @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 transition-colors duration-200 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20;
+  }
+  .label {
+    @apply mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500;
+  }
+}
+
+/* ---- Live preview scanline + pulse overlay (invoice builder) ---- */
+.preview-scanlines {
+  background-image: repeating-linear-gradient(
+    180deg,
+    rgb(100 116 139 / 0.07) 0px,
+    rgb(100 116 139 / 0.07) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+}
+@keyframes preview-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.75; }
+}
+.preview-pulse {
+  animation: preview-pulse 4s ease-in-out infinite;
+}
+
+/* ---- A4 invoice paper (print + on-screen preview) ---- */
+.invoice-paper {
+  width: 100%;
+  max-width: 794px;
+  margin-inline: auto;
+  background: white;
+}
+
+/* ---- Print: output ONLY the invoice document (single A4 page) ---- */
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Hide ALL non-invoice UI: sidebar, nav, top bar, header, footer,
+     forms, inputs, buttons, dialogs, toasts, overlays */
+  aside,
+  nav,
+  header,
+  footer,
+  form,
+  button,
+  input,
+  select,
+  textarea,
+  label,
+  [role="dialog"],
+  [role="alertdialog"],
+  [role="alert"],
+  [role="status"],
+  [class*="modal"],
+  [class*="toast"],
+  .preview-scanlines,
+  .preview-pulse,
+  .scrim,
+  .skeleton {
+    display: none !important;
+  }
+
+  /* Neutralize app shells — remove min-height: 100vh / vertical layouts that push content down */
+  #root,
+  .min-h-screen {
+    display: block !important;
+    min-height: 0 !important;
+    height: auto !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  main {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    animation: none !important;
+  }
+
+  /* De-position the preview wrappers so .invoice-paper anchors to the page top-left.
+     The sticky column wrapper and the relative z-10 wrapper are the only positioned
+     ancestors of the paper — without this, absolute: 0 lands below the fold. */
+  .builder-preview {
+    position: static !important;
+    display: block !important;
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+  .builder-preview > .relative,
+  .lg\:sticky {
+    position: static !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  /* The invoice document — exactly one A4 page, no forced breaks */
+  .invoice-paper {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    /* Fill the full A4 sheet so absolutely-positioned bottom-0 edge bars
+       land on the physical bottom edge of the paper (the page is 297mm tall
+       and @page margin is 0), instead of hugging the end of the content. */
+    min-height: 297mm !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 20mm !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
+    background: #fff !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    break-inside: auto !important;
+    break-before: auto !important;
+    break-after: auto !important;
+    page-break-inside: auto !important;
+    page-break-before: auto !important;
+    page-break-after: auto !important;
+  }
+
+  /* Single-page fit: tighter line-item rhythm + slightly smaller table type */
+  .invoice-paper table th,
+  .invoice-paper table td {
+    font-size: 11.5px !important;
+    padding-top: 2.5mm !important;
+    padding-bottom: 2.5mm !important;
+  }
+  .invoice-paper .mt-6 {
+    margin-top: 3.5mm !important;
+  }
+  .invoice-paper .mt-8 {
+    margin-top: 4.5mm !important;
+  }
+  .invoice-paper .mt-10 {
+    margin-top: 5mm !important;
+  }
+  /* Keep each line-item row on one page — never forces a page break by itself */
+  .invoice-paper tr {
+    break-inside: avoid;
+  }
+}
+@page {
+  size: A4;
+  margin: 0;
+}
+
+/* ---- Respect reduced-motion preferences ---- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
