@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { NavLink } from "react-router-dom";
 import { FileText, LayoutDashboard, Receipt, Settings, Users, X } from "lucide-react";
+import CompanySwitcher from "./CompanySwitcher";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -80,6 +81,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           <X className="h-5 w-5" />
         </button>
       </div>
+
+      <CompanySwitcher onClose={onClose} />
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (

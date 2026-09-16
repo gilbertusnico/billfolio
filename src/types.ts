@@ -96,11 +96,37 @@ export interface TemplateCustomization {
   table: TableStyleCustomization;
 }
 
-export interface InvoiceAppData {
-  profile: Profile;
+export interface Company extends Profile {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Input used when creating a new company workspace. */
+export interface CompanyInput {
+  companyName: string;
+  email: string;
+  address: string;
+  logoUrl: string;
+}
+
+/** Per-company data: every entity that belongs to one company workspace. */
+export interface CompanyWorkspace {
+  companyId: string;
   bankAccounts: BankAccount[];
   clients: Client[];
   invoices: Invoice[];
   settings: Settings;
   template: TemplateCustomization;
 }
+
+export interface InvoiceAppData {
+  companies: Company[];
+  workspaces: CompanyWorkspace[];
+}
+
+/**
+ * The "active company" view — what pages consume. Slices the full store down to
+ * the currently active company, with `profile` attached to the Company itself.
+ */
+export type CompanyView = CompanyWorkspace & { profile: Company };

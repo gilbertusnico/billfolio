@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { Menu, Plus } from "lucide-react";
 import Sidebar from "./Sidebar";
 import { ButtonLink } from "./Button";
+import { useInvoiceData } from "../context/InvoiceDataContext";
 
 function pageTitle(pathname: string): string {
   if (pathname === "/") return "Dashboard";
@@ -17,6 +18,7 @@ function pageTitle(pathname: string): string {
 export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { pathname } = useLocation();
+  const { activeCompanyId } = useInvoiceData();
   const showNewInvoice = pathname === "/" || pathname === "/invoices";
 
   return (
@@ -58,7 +60,7 @@ export default function Layout() {
         </header>
 
         <main
-          key={pathname}
+          key={`${pathname}:${activeCompanyId ?? ""}`}
           className="animate-fade-in mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8"
         >
           <Outlet />

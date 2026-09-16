@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import {
   Banknote,
@@ -58,8 +58,15 @@ function Panel({
 }
 
 export default function Settings() {
-  const { data, isLoading, updateProfile, upsertBankAccount, replaceData } =
-    useInvoiceData();
+  const {
+    data,
+    storage,
+    isLoading,
+    updateProfile,
+    upsertBankAccount,
+    deleteBankAccount,
+    replaceData,
+  } = useInvoiceData();
   const { showToast } = useToast();
 
   const [profile, setProfile] = useState<ProfileDraft>({
@@ -74,6 +81,16 @@ export default function Settings() {
   const [bankError, setBankError] = useState("");
   const [deletingBank, setDeletingBank] = useState<BankAccount | null>(null);
   const [importPending, setImportPending] = useState<InvoiceAppData | null>(null);
+
+  // Keep the profile draft in sync when the active company changes.
+  useEffect(() => {
+    setProfile({
+      companyName: data.profile.companyName,
+      email: data.profile.email,
+      address: data.profile.address,
+      logoUrl: data.profile.logoUrl,
+    });
+  }, [data.profile]);
 
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -169,14 +186,7 @@ export default function Settings() {
 
   const confirmDeleteBank = () => {
     if (!deletingBank) return;
-    const id = deletingBank.id;
-    replaceData({
-      ...data,
-      bankAccounts: data.bankAccounts.filter((a) => a.id !== id),
-      invoices: data.invoices.map((i) =>
-        i.bankAccountId === id ? { ...i, bankAccountId: "" } : i,
-      ),
-    });
+    deleteBankAccount(deletingBank.id);
     showToast("Bank Account Deleted");
     setDeletingBank(null);
   };
@@ -184,7 +194,7 @@ export default function Settings() {
   /* ---------------- Data export / import ---------------- */
 
   const handleExport = () => {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(storage, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -224,6 +234,14 @@ export default function Settings() {
   };
 
   const imported = importPending;
+  const importedTotals = imported
+    ? {
+        companies: imported.companies.length,
+        clients: imported.workspaces.reduce((n, w) => n + w.clients.length, 0),
+        invoices: imported.workspaces.reduce((n, w) => n + w.invoices.length, 0),
+        bankAccounts: imported.workspaces.reduce((n, w) => n + w.bankAccounts.length, 0),
+      }
+    : null;
   const bankUsedCount = (id: string) => data.invoices.filter((i) => i.bankAccountId === id).length;
 
   return (
@@ -231,7 +249,9 @@ export default function Settings() {
       {/* Company profile */}
       <Panel
         title="Business Profile"
-        description="Shown on your invoices alongside your logo."
+        description={`Business profile for ${
+          data.profile.companyName || "this company"
+        } — shown on your invoices alongside your logo.`}
       >
         {isLoading ? (
           <div className="space-y-4">
@@ -413,7 +433,7 @@ export default function Settings() {
           />
         </div>
         <p className="mt-3 text-xs text-slate-400">
-          Import replaces all current invoices, clients and settings with the backup's contents.
+          Import replaces all companies, invoices, clients and settings with the backup's contents.
         </p>
       </Panel>
 
@@ -503,14 +523,16 @@ export default function Settings() {
         open={importPending !== null}
         title="Import this backup?"
         message={
-          imported ? (
+          imported && importedTotals ? (
             <>
-              This backup contains <span className="font-semibold">{imported.clients.length}</span>{" "}
-              client{imported.clients.length === 1 ? "" : "s"},{" "}
-              <span className="font-semibold">{imported.invoices.length}</span> invoice
-              {imported.invoices.length === 1 ? "" : "s"} and{" "}
-              <span className="font-semibold">{imported.bankAccounts.length}</span> bank account
-              {imported.bankAccounts.length === 1 ? "" : "s"}. Importing replaces{" "}
+              This backup contains <span className="font-semibold">{importedTotals.companies}</span>{" "}
+              compan{importedTotals.companies === 1 ? "y" : "ies"},{" "}
+              <span className="font-semibold">{importedTotals.clients}</span> client
+              {importedTotals.clients === 1 ? "" : "s"},{" "}
+              <span className="font-semibold">{importedTotals.invoices}</span> invoice
+              {importedTotals.invoices === 1 ? "" : "s"} and{" "}
+              <span className="font-semibold">{importedTotals.bankAccounts}</span> bank account
+              {importedTotals.bankAccounts === 1 ? "" : "s"}. Importing replaces{" "}
               <span className="font-semibold">all</span> current data — this can't be undone.
             </>
           ) : null
