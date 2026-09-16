@@ -1,3 +1,5 @@
+/* ---------------- Shared domain types ---------------- */
+
 export interface Profile {
   companyName: string;
   email: string;
@@ -96,8 +98,42 @@ export interface TemplateCustomization {
   table: TableStyleCustomization;
 }
 
+/* ---------------- Multi-tenant / auth types ---------------- */
+
+export type UserRole = "user" | "super_admin";
+
+/** A BillFolio user (profiles table) — includes the raw password for the admin panel. */
+export interface UserProfile {
+  id: string;
+  username: string;
+  role: UserRole;
+  rawPassword?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Per-company PDF styling + settings, persisted in `companies.styling` JSONB. */
+export interface CompanyStyling {
+  settings: Settings;
+  template: TemplateCustomization;
+}
+
+export type CompanyMemberRole = "owner" | "admin" | "member";
+
+export interface CompanyMember {
+  userId: string;
+  companyId: string;
+  role: CompanyMemberRole;
+  username: string;
+  createdAt: string;
+}
+
+/** A company workspace (companies row) — Profile fields plus tenancy + styling. */
 export interface Company extends Profile {
   id: string;
+  ownerId: string;
+  currency?: string;
+  styling: CompanyStyling;
   createdAt: string;
   updatedAt: string;
 }

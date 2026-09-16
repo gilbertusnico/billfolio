@@ -1,10 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import type { Session } from "@supabase/supabase-js";
 import type {
   BankAccount,
   Client,
   Company,
   CompanyInput,
+  CompanyStyling,
   CompanyView,
   CompanyWorkspace,
   Invoice,
@@ -12,60 +14,93 @@ import type {
   Profile,
   Settings,
   TemplateCustomization,
+  UserProfile,
 } from "../types";
 import {
-  DEFAULT_DATA,
   DEFAULT_SETTINGS,
   DEFAULT_TEMPLATE,
-  deleteBankAccount as deleteBankAccountPure,
-  deleteClient as deleteClientPure,
-  deleteInvoice as deleteInvoicePure,
-  emptyWorkspace,
-  initInvoiceData,
-  makeCompany,
-  readActiveCompanyId,
-  removeCompany as removeCompanyPure,
-  sanitize,
-  saveActiveCompanyId,
-  saveInvoiceAppData,
-  updateCompanyProfile as updateCompanyProfilePure,
-  updateSettings as updateSettingsPure,
-  updateTemplate as updateTemplatePure,
-  upsertBankAccount as upsertBankAccountPure,
-  upsertClient as upsertClientPure,
-  upsertInvoice as upsertInvoicePure,
-} from "../lib/storage";
+  changeOwnPassword,
+  createCompanyForUser,
+  deleteBankAccountRow,
+  deleteClientRow,
+  deleteCompanyRow,
+  deleteInvoiceRow,
+  ensureProfile,
+  fetchUserCompanies,
+  fetchUserProfile,
+  fetchWorkspace,
+  friendlyError,
+  seedSuperAdmin,
+  signOutUser,
+  supabase,
+  updateCompanyProfile,
+  updateCompanyStyling,
+  upsertBankAccountRow,
+  upsertClientRow,
+  upsertInvoiceRow,
+} from "../lib/api";
+
+const ACTIVE_COMPANY_KEY = "invoice_app_active_company_id";
+
+export type WorkspaceView = CompanyWorkspace & { profile: Company };
 
 interface InvoiceDataContextValue {
+  /* Auth */
+  user: Session["user"] | null;
+  userProfile: UserProfile | null;
+  isSuperAdmin: boolean;
+  authLoading: boolean;
+  signOut: () => Promise<void>;
+  changePassword: (newPassword: string) => Promise<void>;
+
   /** Sliced view of the ACTIVE company — what pages should consume. */
   data: CompanyView;
-  /** Full multi-company store — used for export/import. */
+  /** Snapshot used by the Settings export feature. */
   storage: InvoiceAppData;
   companies: Company[];
   activeCompany: Company | null;
   activeCompanyId: string | null;
   isLoading: boolean;
+  /** A signed-in non-admin with no companies is locked into onboarding. */
+  needsOnboarding: boolean;
+
   setActiveCompany: (id: string) => void;
-  addCompany: (input: CompanyInput) => Company;
-  updateCompany: (id: string, profile: Profile) => void;
-  removeCompany: (id: string) => void;
-  replaceData: (data: InvoiceAppData) => void;
-  upsertClient: (client: Client) => void;
-  deleteClient: (id: string) => void;
-  upsertInvoice: (invoice: Invoice) => void;
-  deleteInvoice: (id: string) => void;
-  upsertBankAccount: (account: BankAccount) => void;
-  deleteBankAccount: (id: string) => void;
-  updateProfile: (profile: Profile) => void;
-  updateSettings: (settings: Settings) => void;
-  updateTemplate: (template: TemplateCustomization) => void;
+  addCompany: (input: CompanyInput) => Promise<Company>;
+  updateCompany: (id: string, profile: Profile) => Promise<void>;
+  removeCompany: (id: string) => Promise<void>;
+  upsertClient: (client: Client) => Promise<void>;
+  deleteClient: (id: string) => Promise<void>;
+  upsertInvoice: (invoice: Invoice) => Promise<void>;
+  deleteInvoice: (id: string) => Promise<void>;
+  upsertBankAccount: (account: BankAccount) => Promise<void>;
+  deleteBankAccount: (id: string) => Promise<void>;
+  updateProfile: (profile: Profile) => Promise<void>;
+  updateSettings: (settings: Settings) => Promise<void>;
+  updateTemplate: (template: TemplateCustomization) => Promise<void>;
 }
 
 const InvoiceDataContext = createContext<InvoiceDataContextValue | null>(null);
 
-const FALLBACK_VIEW: CompanyView = {
+function fallbackCompany(): Company {
+  return {
+    id: "",
+    companyName: "My Company",
+    email: "",
+    address: "",
+    logoUrl: "",
+    ownerId: "",
+    styling: {
+      settings: { ...DEFAULT_SETTINGS },
+      template: structuredClone(DEFAULT_TEMPLATE),
+    },
+    createdAt: "",
+    updatedAt: "",
+  };
+}
+
+const FALLBACK_VIEW: WorkspaceView = {
   companyId: "",
-  profile: makeCompany({ companyName: "My Company" }),
+  profile: fallbackCompany(),
   bankAccounts: [],
   clients: [],
   invoices: [],
@@ -74,171 +109,392 @@ const FALLBACK_VIEW: CompanyView = {
 };
 
 export function InvoiceDataProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<{ data: InvoiceAppData; isLoading: boolean }>({
-    data: DEFAULT_DATA,
-    isLoading: true,
-  });
+  const [authReady, setAuthReady] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [activeCompanyId, setActiveCompanyIdState] = useState<string | null>(null);
+  const [view, setView] = useState<WorkspaceView | null>(null);
+  const [workspaceLoading, setWorkspaceLoading] = useState(false);
+
+  // Refs so callbacks never read stale values.
+  const sessionRef = useRef<Session | null>(null);
+  const companiesRef = useRef<Company[]>([]);
   const activeCompanyIdRef = useRef<string | null>(null);
+  const profileRef = useRef<UserProfile | null>(null);
+  const loadSeq = useRef(0);
 
-  // Rehydrate once from LocalStorage on mount (init migrates + seeds defaults).
   useEffect(() => {
-    const data = initInvoiceData();
-    const stored = readActiveCompanyId();
-    const valid = data.companies.some((c) => c.id === stored)
-      ? stored
-      : data.companies[0]?.id ?? null;
-    activeCompanyIdRef.current = valid;
-    setState({ data, isLoading: false });
-    setActiveCompanyIdState(valid);
-    if (valid) saveActiveCompanyId(valid);
-  }, []);
-
-  // Persist the active company whenever it changes.
+    companiesRef.current = companies;
+  }, [companies]);
   useEffect(() => {
     activeCompanyIdRef.current = activeCompanyId;
-    if (activeCompanyId) saveActiveCompanyId(activeCompanyId);
   }, [activeCompanyId]);
-
-  // Self-heal: if the active company disappears (import/replace), fall back to the first one.
   useEffect(() => {
-    if (state.isLoading) return;
-    if (activeCompanyId && !state.data.companies.some((c) => c.id === activeCompanyId)) {
-      setActiveCompanyIdState(state.data.companies[0]?.id ?? null);
+    profileRef.current = profile;
+  }, [profile]);
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  const showError = (err: unknown) => {
+    // Errors are surfaced to the caller; this hook is only a safety net for
+    // fire-and-forget mutations (see each mutator below).
+    console.error("[InvoiceData] ", err);
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* Loading a company's workspace                                       */
+  /* ------------------------------------------------------------------ */
+
+  const loadWorkspace = useCallback(async (companyId: string) => {
+    const seq = ++loadSeq.current;
+    setWorkspaceLoading(true);
+    try {
+      const company = companiesRef.current.find((c) => c.id === companyId);
+      const payload = await fetchWorkspace(companyId);
+      if (seq !== loadSeq.current) return; // a newer request superseded this one
+      if (!company || companyId !== activeCompanyIdRef.current) return;
+      setView({
+        companyId,
+        ...payload,
+        settings: company.styling.settings,
+        template: company.styling.template,
+        profile: company,
+      });
+    } catch (err) {
+      if (seq === loadSeq.current) showError(err);
+    } finally {
+      if (seq === loadSeq.current) setWorkspaceLoading(false);
     }
-  }, [state.data, state.isLoading, activeCompanyId]);
-
-  // Slice the active company's workspace + profile into the "data" view.
-  const view = useMemo<CompanyView | null>(() => {
-    const company =
-      state.data.companies.find((c) => c.id === activeCompanyId) ?? state.data.companies[0] ?? null;
-    if (!company) return null;
-    const ws = state.data.workspaces.find((w) => w.companyId === company.id) ?? emptyWorkspace(company.id);
-    return { ...ws, profile: company };
-  }, [state.data, activeCompanyId]);
-
-  // Single write-through path: mutate → persist → re-render.
-  const mutate = useCallback((fn: (data: InvoiceAppData) => InvoiceAppData) => {
-    setState((prev) => {
-      const next = fn(prev.data);
-      saveInvoiceAppData(next);
-      return { data: next, isLoading: false };
-    });
   }, []);
 
-  // Mutations scoped to the active company's workspace.
-  const mutateWorkspace = useCallback(
-    (fn: (ws: CompanyWorkspace) => CompanyWorkspace) => {
-      const companyId = activeCompanyIdRef.current;
-      if (!companyId) return;
-      mutate((d) => ({
-        ...d,
-        workspaces: d.workspaces.map((w) => (w.companyId === companyId ? fn(w) : w)),
-      }));
+  /* ------------------------------------------------------------------ */
+  /* Bootstrap: session → profile → companies → active company           */
+  /* ------------------------------------------------------------------ */
+
+  const hydrateUser = useCallback(
+    async (user: NonNullable<Session["user"]>) => {
+      setSession((prev) => (prev?.user.id === user.id ? prev : ({ ...(prev ?? {}), user } as Session)));
+      let prof = await fetchUserProfile(user.id).catch(() => null);
+      if (!prof) {
+        const fallbackName = (user.email ?? "user").split("@")[0] || "user";
+        await ensureProfile(user.id, fallbackName).catch(() => undefined);
+        prof = await fetchUserProfile(user.id).catch(() => null);
+      }
+      setProfile(prof);
+
+      const list = await fetchUserCompanies();
+      companiesRef.current = list;
+      setCompanies(list);
+
+      const stored = localStorage.getItem(ACTIVE_COMPANY_KEY);
+      const nextActive = list.some((c) => c.id === stored) ? stored : list[0]?.id ?? null;
+      setActiveCompanyIdState(nextActive);
+      if (nextActive) {
+        localStorage.setItem(ACTIVE_COMPANY_KEY, nextActive);
+        void loadWorkspace(nextActive);
+      }
     },
-    [mutate]
+    [loadWorkspace]
   );
 
-  const setActiveCompany = useCallback((id: string) => {
-    setActiveCompanyIdState(id);
+  const resetAll = useCallback(() => {
+    companiesRef.current = [];
+    activeCompanyIdRef.current = null;
+    setCompanies([]);
+    setActiveCompanyIdState(null);
+    setView(null);
+    setProfile(null);
+    setSession(null);
+    setWorkspaceLoading(false);
   }, []);
+
+  // Subscribe to auth changes (fires on mount for the current session too).
+  useEffect(() => {
+    let alive = true;
+
+    const bootstrap = async () => {
+      const {
+        data: { session: current },
+      } = await supabase.auth.getSession();
+      if (!alive) return;
+      if (current?.user) {
+        await hydrateUser(current.user);
+      } else {
+        // Best-effort auto-seed of the Super Admin account (never auto-logs-in).
+        await seedSuperAdmin().catch(() => undefined);
+      }
+      if (alive) setAuthReady(true);
+    };
+    void bootstrap();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === "SIGNED_OUT" || event === "USER_DELETED") {
+        resetAll();
+        setAuthReady(true);
+        return;
+      }
+      if (nextSession?.user) {
+        setSession(nextSession);
+        void hydrateUser(nextSession.user);
+      }
+    });
+
+    return () => {
+      alive = false;
+      subscription.unsubscribe();
+    };
+  }, [hydrateUser, resetAll]);
+
+  /* ------------------------------------------------------------------ */
+  /* Active company switching                                            */
+  /* ------------------------------------------------------------------ */
+
+  const setActiveCompany = useCallback(
+    (id: string) => {
+      const company = companiesRef.current.find((c) => c.id === id);
+      if (!company) return;
+      setActiveCompanyIdState(id);
+      localStorage.setItem(ACTIVE_COMPANY_KEY, id);
+      void loadWorkspace(id);
+    },
+    [loadWorkspace]
+  );
+
+  /* ------------------------------------------------------------------ */
+  /* Company + workspace mutations                                       */
+  /* ------------------------------------------------------------------ */
 
   const addCompany = useCallback(
-    (input: CompanyInput): Company => {
-      const company = makeCompany(input);
-      mutate((d) => ({
-        companies: [...d.companies, company],
-        workspaces: [...d.workspaces, emptyWorkspace(company.id)],
-      }));
+    async (input: CompanyInput): Promise<Company> => {
+      const company = await createCompanyForUser(input);
+      companiesRef.current = [...companiesRef.current, company];
+      setCompanies(companiesRef.current);
       setActiveCompanyIdState(company.id);
+      localStorage.setItem(ACTIVE_COMPANY_KEY, company.id);
+      void loadWorkspace(company.id);
       return company;
     },
-    [mutate]
+    [loadWorkspace]
   );
 
-  const updateCompany = useCallback(
-    (id: string, profile: Profile) => {
-      mutate((d) => updateCompanyProfilePure(d, id, profile));
-    },
-    [mutate]
-  );
+  const updateCompany = useCallback(async (id: string, p: Profile) => {
+    await updateCompanyProfile(id, p);
+    companiesRef.current = companiesRef.current.map((c) =>
+      c.id === id
+        ? { ...c, companyName: p.companyName, email: p.email, address: p.address, logoUrl: p.logoUrl, updatedAt: new Date().toISOString() }
+        : c
+    );
+    setCompanies(companiesRef.current);
+    setView((v) => (v && v.profile.id === id ? { ...v, profile: companiesRef.current.find((c) => c.id === id)! } : v));
+  }, []);
 
   const removeCompany = useCallback(
-    (id: string) => {
-      mutate((d) => removeCompanyPure(d, id));
-      setActiveCompanyIdState((prev) => (prev === id ? null : prev));
+    async (id: string) => {
+      await deleteCompanyRow(id);
+      companiesRef.current = companiesRef.current.filter((c) => c.id !== id);
+      setCompanies(companiesRef.current);
+      if (activeCompanyIdRef.current === id) {
+        const next = companiesRef.current[0]?.id ?? null;
+        setActiveCompanyIdState(next);
+        if (next) {
+          localStorage.setItem(ACTIVE_COMPANY_KEY, next);
+          void loadWorkspace(next);
+        } else {
+          localStorage.removeItem(ACTIVE_COMPANY_KEY);
+          setView(null);
+        }
+      }
     },
-    [mutate]
+    [loadWorkspace]
   );
 
+  const applyStyling = useCallback(async (patch: Partial<CompanyStyling>) => {
+    const id = activeCompanyIdRef.current;
+    if (!id) return;
+    const company = companiesRef.current.find((c) => c.id === id);
+    if (!company) return;
+    const styling: CompanyStyling = { ...company.styling, ...patch };
+    companiesRef.current = companiesRef.current.map((c) => (c.id === id ? { ...c, styling } : c));
+    setCompanies(companiesRef.current);
+    setView((v) =>
+      v && v.profile.id === id
+        ? { ...v, ...patch, profile: { ...v.profile, styling } }
+        : v
+    );
+    await updateCompanyStyling(id, styling);
+  }, []);
+
   const updateProfile = useCallback(
-    (profile: Profile) => {
+    (p: Profile) => {
       const id = activeCompanyIdRef.current;
-      if (id) updateCompany(id, profile);
+      if (id) return updateCompany(id, p);
+      return Promise.resolve();
     },
     [updateCompany]
   );
 
-  const replaceData = useCallback((d: InvoiceAppData) => {
-    const cleaned = sanitize(d);
-    saveInvoiceAppData(cleaned);
-    setState({ data: cleaned, isLoading: false });
-    setActiveCompanyIdState((prev) =>
-      cleaned.companies.some((c) => c.id === prev) ? prev : cleaned.companies[0]?.id ?? null
+  const updateSettings = useCallback(
+    (settings: Settings) => applyStyling({ settings }),
+    [applyStyling]
+  );
+  const updateTemplate = useCallback(
+    (template: TemplateCustomization) => applyStyling({ template }),
+    [applyStyling]
+  );
+
+  /** Applies a workspace mutator to both the DB and the local view. */
+  const mutateView = useCallback(
+    (fn: (v: WorkspaceView) => WorkspaceView) => {
+      setView((v) => (v ? fn(v) : v));
+      if (!v) return; // note: `v` is the previous value read below
+    },
+    []
+  );
+
+  /* ------------------------------------------------------------------ */
+  /* Fire-and-forget workspace CRUD (toasts on failure are handled by    */
+  /* the call pages via catch → error toast)                             */
+  /* ------------------------------------------------------------------ */
+
+  const upsertClient = useCallback(async (client: Client) => {
+    const companyId = activeCompanyIdRef.current;
+    if (!companyId) return;
+    await upsertClientRow(companyId, client);
+    setView((v) => {
+      if (!v) return v;
+      const exists = v.clients.some((c) => c.id === client.id);
+      return {
+        ...v,
+        clients: exists ? v.clients.map((c) => (c.id === client.id ? client : c)) : [...v.clients, client],
+      };
+    });
+  }, []);
+
+  const deleteClient = useCallback(async (clientId: string) => {
+    await deleteClientRow(clientId);
+    setView((v) => (v ? { ...v, clients: v.clients.filter((c) => c.id !== clientId) } : v));
+  }, []);
+
+  const upsertInvoice = useCallback(async (invoice: Invoice) => {
+    const companyId = activeCompanyIdRef.current;
+    if (!companyId) return;
+    await upsertInvoiceRow(companyId, invoice);
+    setView((v) => {
+      if (!v) return v;
+      const exists = v.invoices.some((i) => i.id === invoice.id);
+      return {
+        ...v,
+        invoices: exists ? v.invoices.map((i) => (i.id === invoice.id ? invoice : i)) : [...v.invoices, invoice],
+      };
+    });
+  }, []);
+
+  const deleteInvoice = useCallback(async (invoiceId: string) => {
+    await deleteInvoiceRow(invoiceId);
+    setView((v) => (v ? { ...v, invoices: v.invoices.filter((i) => i.id !== invoiceId) } : v));
+  }, []);
+
+  const upsertBankAccount = useCallback(async (account: BankAccount) => {
+    const companyId = activeCompanyIdRef.current;
+    if (!companyId) return;
+    await upsertBankAccountRow(companyId, account);
+    setView((v) => {
+      if (!v) return v;
+      const exists = v.bankAccounts.some((a) => a.id === account.id);
+      return {
+        ...v,
+        bankAccounts: exists ? v.bankAccounts.map((a) => (a.id === account.id ? account : a)) : [...v.bankAccounts, account],
+      };
+    });
+  }, []);
+
+  const deleteBankAccount = useCallback(async (accountId: string) => {
+    await deleteBankAccountRow(accountId);
+    setView((v) =>
+      v
+        ? {
+            ...v,
+            bankAccounts: v.bankAccounts.filter((a) => a.id !== accountId),
+            invoices: v.invoices.map((i) => (i.bankAccountId === accountId ? { ...i, bankAccountId: "" } : i)),
+          }
+        : v
     );
   }, []);
 
+  /* ------------------------------------------------------------------ */
+  /* Auth actions                                                        */
+  /* ------------------------------------------------------------------ */
+
+  const signOut = useCallback(async () => {
+    setAuthReady(false);
+    try {
+      await signOutUser();
+    } finally {
+      resetAll();
+      setAuthReady(true);
+    }
+  }, [resetAll]);
+
+  const changePassword = useCallback(
+    async (newPassword: string) => {
+      await changeOwnPassword(newPassword);
+      const me = profileRef.current;
+      if (me) setProfile({ ...me, rawPassword: newPassword });
+    },
+    []
+  );
+
+  /* ------------------------------------------------------------------ */
+  /* Derived values                                                      */
+  /* ------------------------------------------------------------------ */
+
+  const activeCompany = view?.profile && activeCompanyId === view.profile.id ? view.profile : null;
+  const isSuperAdmin = profile?.role === "super_admin";
+
+  const data: CompanyView = view ?? FALLBACK_VIEW;
+
+  const storage = useMemo<InvoiceAppData>(
+    () => ({
+      companies,
+      workspaces: view ? [{ ...view }] : [],
+    }),
+    [companies, view]
+  );
+
   const value: InvoiceDataContextValue = {
-    data: view ?? FALLBACK_VIEW,
-    storage: state.data,
-    companies: state.data.companies,
-    activeCompany: view?.profile ?? null,
+    user: session?.user ?? null,
+    userProfile: profile,
+    isSuperAdmin,
+    authLoading: !authReady,
+    signOut,
+    changePassword,
+
+    data,
+    storage,
+    companies,
+    activeCompany,
     activeCompanyId,
-    isLoading: state.isLoading,
+    isLoading: workspaceLoading,
+    needsOnboarding: authReady && !!session?.user && !isSuperAdmin && companies.length === 0,
+
     setActiveCompany,
     addCompany,
     updateCompany,
     removeCompany,
-    replaceData,
-    upsertClient: useCallback(
-      (c: Client) => mutateWorkspace((w) => upsertClientPure(w, c)),
-      [mutateWorkspace]
-    ),
-    deleteClient: useCallback(
-      (id: string) => mutateWorkspace((w) => deleteClientPure(w, id)),
-      [mutateWorkspace]
-    ),
-    upsertInvoice: useCallback(
-      (i: Invoice) => mutateWorkspace((w) => upsertInvoicePure(w, i)),
-      [mutateWorkspace]
-    ),
-    deleteInvoice: useCallback(
-      (id: string) => mutateWorkspace((w) => deleteInvoicePure(w, id)),
-      [mutateWorkspace]
-    ),
-    upsertBankAccount: useCallback(
-      (a: BankAccount) => mutateWorkspace((w) => upsertBankAccountPure(w, a)),
-      [mutateWorkspace]
-    ),
-    deleteBankAccount: useCallback(
-      (id: string) =>
-        mutateWorkspace((w) => ({
-          ...deleteBankAccountPure(w, id),
-          invoices: w.invoices.map((i) =>
-            i.bankAccountId === id ? { ...i, bankAccountId: "" } : i
-          ),
-        })),
-      [mutateWorkspace]
-    ),
+    upsertClient,
+    deleteClient,
+    upsertInvoice,
+    deleteInvoice,
+    upsertBankAccount,
+    deleteBankAccount,
     updateProfile,
-    updateSettings: useCallback(
-      (s: Settings) => mutateWorkspace((w) => updateSettingsPure(w, s)),
-      [mutateWorkspace]
-    ),
-    updateTemplate: useCallback(
-      (t: TemplateCustomization) => mutateWorkspace((w) => updateTemplatePure(w, t)),
-      [mutateWorkspace]
-    ),
+    updateSettings,
+    updateTemplate,
   };
 
   return <InvoiceDataContext.Provider value={value}>{children}</InvoiceDataContext.Provider>;
@@ -249,3 +505,6 @@ export function useInvoiceData(): InvoiceDataContextValue {
   if (!ctx) throw new Error("useInvoiceData must be used within <InvoiceDataProvider>");
   return ctx;
 }
+
+// Re-exported for pages that want the friendly error text.
+export { friendlyError };
