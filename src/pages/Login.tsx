@@ -94,10 +94,6 @@ export default function LoginPage() {
           </ul>
         </div>
 
-        <p className="relative text-xs font-medium text-slate-500">
-          Super Admin: <span className="text-slate-300">Nico</span> ·{" "}
-          <span className="text-slate-300">Nico123</span>
-        </p>
       </aside>
 
       {/* Form panel */}
