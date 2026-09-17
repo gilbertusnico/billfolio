@@ -3,6 +3,7 @@ import type { ErrorInfo, ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AlertTriangle, LoaderCircle, RotateCcw } from "lucide-react";
 import { ToastProvider } from "./components/Toast";
+import GlobalErrorReporter from "./components/GlobalErrorReporter";
 import { InvoiceDataProvider, useInvoiceData } from "./context/InvoiceDataContext";
 import Layout from "./components/Layout";
 import RequireAuth from "./guards/RequireAuth";
@@ -132,6 +133,7 @@ export default function App() {
         <ToastProvider>
           <InvoiceDataProvider>
             <AppRoutes />
+            <GlobalErrorReporter />
           </InvoiceDataProvider>
         </ToastProvider>
       </AppErrorBoundary>
