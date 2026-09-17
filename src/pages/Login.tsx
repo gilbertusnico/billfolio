@@ -37,15 +37,21 @@ export default function LoginPage() {
     }
     setSubmitting(true);
     setError("");
-    const { data, error: signInError } = await signInWithUsername(username.trim(), password);
-    setSubmitting(false);
-    if (signInError || !data.user) {
-      setError("That username or password doesn't match — try again.");
-      showToast("Sign-in failed — check your username and password", "error");
-      return;
+    try {
+      const { data, error: signInError } = await signInWithUsername(username.trim(), password);
+      if (signInError || !data.user) {
+        setError("That username or password doesn't match — try again.");
+        showToast("Sign-in failed — check your username and password", "error");
+        return;
+      }
+      showToast(`Welcome back, ${username.trim()}!`);
+      navigate(location.state?.from ?? "/", { replace: true });
+    } catch {
+      setError("We couldn't reach the server — check your connection and try again.");
+      showToast("Network error — we couldn't reach the server", "error");
+    } finally {
+      setSubmitting(false);
     }
-    showToast(`Welcome back, ${username.trim()}!`);
-    navigate(location.state?.from ?? "/", { replace: true });
   };
 
   return (
