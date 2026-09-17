@@ -1,6 +1,6 @@
 import { Component } from "react";
 import type { ErrorInfo, ReactNode } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AlertTriangle, LoaderCircle, RotateCcw } from "lucide-react";
 import { ToastProvider } from "./components/Toast";
 import GlobalErrorReporter from "./components/GlobalErrorReporter";
@@ -14,6 +14,7 @@ import Invoices from "./pages/Invoices";
 import InvoiceBuilder from "./pages/InvoiceBuilder";
 import Clients from "./pages/Clients";
 import Settings from "./pages/Settings";
+import PublicInvoice from "./pages/PublicInvoice";
 import OnboardingPage from "./pages/admin/Onboarding";
 import AdminUsers from "./pages/admin/Users";
 import AdminCompanies from "./pages/admin/Companies";
@@ -29,10 +30,14 @@ function FullScreenLoading() {
 
 function AppRoutes() {
   const { authLoading } = useInvoiceData();
-  if (authLoading) return <FullScreenLoading />;
+  const { pathname } = useLocation();
+  // Public invoice links must render instantly — no auth-loading gate, no login.
+  const isPublicPath = pathname.startsWith("/i/");
+  if (authLoading && !isPublicPath) return <FullScreenLoading />;
 
   return (
     <Routes>
+      <Route path="/i/:id" element={<PublicInvoice />} />
       <Route path="/login" element={<LoginPage />} />
       <Route
         path="/onboarding"
