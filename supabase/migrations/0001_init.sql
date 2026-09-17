@@ -12,12 +12,109 @@
 --   * RLS policies        (owners, members and super admins only)
 --   * security-definer admin RPCs used by the /users and /companies pages
 --   * Super Admin account:  username `Nico` · password `Nico123`
+--
+-- ORDERING MATTERS: all tables are created BEFORE the RLS helper functions.
+-- PostgreSQL validates `language sql` function bodies at CREATE time, so a
+-- function may only reference relations that already exist (otherwise the
+-- SQL Editor fails with 42P01 "relation does not exist").
 -- ============================================================================
 
 create extension if not exists pgcrypto;
 
 -- ----------------------------------------------------------------------------
--- RLS helper functions (security definer so policies don't recurse)
+-- Tables
+-- ----------------------------------------------------------------------------
+
+-- profiles
+create table if not exists public.profiles (
+  id          uuid primary key references auth.users(id) on delete cascade,
+  username    text not null unique,
+  role        text not null default 'user' check (role in ('user', 'super_admin')),
+  raw_password text,          -- plaintext mirror for the internal admin panel
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+-- companies  (styling JSONB holds { settings, template } per company)
+create table if not exists public.companies (
+  id         uuid primary key default gen_random_uuid(),
+  name       text not null,
+  owner_id   uuid not null references auth.users(id) on delete cascade,
+  email      text not null default '',
+  address    text not null default '',
+  logo_url   text not null default '',
+  currency   text not null default 'USD',
+  styling    jsonb not null default '{
+    "settings": { "lastSequence": 0, "invoicePrefix": "INV-", "defaultTaxRate": 0 },
+    "template": {
+      "invoiceTitleColor": "#2563eb",
+      "companyNameColor": "#0f172a",
+      "topBorder":  { "visible": false, "color": "#2563eb", "thickness": 4 },
+      "bottomBorder": { "visible": false, "color": "#2563eb", "thickness": 4 },
+      "table": { "headerStyle": "filled", "headerColor": "#eff6ff", "zebra": false }
+    }
+  }'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- company_members  (multi-tenant access grants)
+create table if not exists public.company_members (
+  company_id uuid not null references public.companies(id) on delete cascade,
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  role       text not null default 'member' check (role in ('owner', 'admin', 'member')),
+  created_at timestamptz not null default now(),
+  primary key (company_id, user_id)
+);
+
+-- clients  (scoped to a company)
+create table if not exists public.clients (
+  id              uuid primary key default gen_random_uuid(),
+  company_id      uuid not null references public.companies(id) on delete cascade,
+  name            text not null,
+  contact_company text not null default '',
+  email           text not null default '',
+  phone           text not null default '',
+  address         text not null default '',
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+
+-- bank_accounts
+create table if not exists public.bank_accounts (
+  id             uuid primary key default gen_random_uuid(),
+  company_id     uuid not null references public.companies(id) on delete cascade,
+  name           text not null,
+  account_number text not null default '',
+  holder         text not null default '',
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+
+-- invoices  (line items are stored as JSONB on the row for atomic saves)
+create table if not exists public.invoices (
+  id               uuid primary key default gen_random_uuid(),
+  company_id       uuid not null references public.companies(id) on delete cascade,
+  number           text not null,
+  client_id        uuid references public.clients(id) on delete set null,
+  client_snapshot  jsonb,
+  project_name     text not null default '',
+  invoice_date     date not null,
+  due_date         date not null,
+  tax_rate         numeric not null default 0,
+  bank_account_id  uuid references public.bank_accounts(id) on delete set null,
+  bank_snapshot    jsonb,
+  notes            text not null default '',
+  status           text not null default 'DRAFT' check (status in ('DRAFT', 'PENDING', 'PAID')),
+  items            jsonb not null default '[]'::jsonb,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now()
+);
+
+-- ----------------------------------------------------------------------------
+-- RLS helper functions (security definer so policies don't recurse).
+-- NOTE: created AFTER the tables — `language sql` bodies are validated at
+-- CREATE time, so every referenced relation must already exist.
 -- ----------------------------------------------------------------------------
 
 create or replace function public.is_super_admin()
@@ -47,22 +144,71 @@ as $$
 $$;
 
 -- ----------------------------------------------------------------------------
--- profiles
+-- Row Level Security & policies (helper functions above must exist first)
 -- ----------------------------------------------------------------------------
 
-create table if not exists public.profiles (
-  id          uuid primary key references auth.users(id) on delete cascade,
-  username    text not null unique,
-  role        text not null default 'user' check (role in ('user', 'super_admin')),
-  raw_password text,          -- plaintext mirror for the internal admin panel
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now()
-);
-
+-- profiles
 alter table public.profiles enable row level security;
 
--- The reserved username "Nico" always boots as super admin; every other
+create policy "profiles_select" on public.profiles
+  for select using (id = auth.uid() or public.is_super_admin());
+create policy "profiles_insert" on public.profiles
+  for insert with check (auth.uid() = id);
+create policy "profiles_update" on public.profiles
+  for update using (id = auth.uid() or public.is_super_admin())
+  with check (id = auth.uid() or public.is_super_admin());
+create policy "profiles_delete" on public.profiles
+  for delete using (public.is_super_admin());
+
+-- companies
+alter table public.companies enable row level security;
+
+create policy "companies_select" on public.companies for select
+  using (owner_id = auth.uid() or public.is_company_member(id) or public.is_super_admin());
+create policy "companies_insert" on public.companies for insert
+  with check (owner_id = auth.uid());
+create policy "companies_update" on public.companies for update
+  using (owner_id = auth.uid() or public.is_super_admin())
+  with check (owner_id = auth.uid() or public.is_super_admin());
+create policy "companies_delete" on public.companies for delete
+  using (owner_id = auth.uid() or public.is_super_admin());
+
+-- company_members
+alter table public.company_members enable row level security;
+
+create policy "members_select" on public.company_members for select
+  using (user_id = auth.uid() or public.is_super_admin());
+create policy "members_insert" on public.company_members for insert
+  with check (public.is_super_admin() or (select c.owner_id = auth.uid() from public.companies c where c.id = company_id));
+create policy "members_delete" on public.company_members for delete
+  using (user_id = auth.uid() or public.is_super_admin());
+
+-- clients
+alter table public.clients enable row level security;
+
+create policy "clients_all" on public.clients for all
+  using (public.is_company_member(company_id))
+  with check (public.is_company_member(company_id));
+
+-- bank_accounts
+alter table public.bank_accounts enable row level security;
+
+create policy "bank_accounts_all" on public.bank_accounts for all
+  using (public.is_company_member(company_id))
+  with check (public.is_company_member(company_id));
+
+-- invoices
+alter table public.invoices enable row level security;
+
+create policy "invoices_all" on public.invoices for all
+  using (public.is_company_member(company_id))
+  with check (public.is_company_member(company_id));
+
+-- ----------------------------------------------------------------------------
+-- Trigger: reserved username "Nico" always boots as super admin; every other
 -- self-registered profile is forced to role=user (no self-elevation).
+-- ----------------------------------------------------------------------------
+
 create or replace function public.handle_profile_role()
 returns trigger
 language plpgsql
@@ -82,146 +228,6 @@ drop trigger if exists trg_profiles_role on public.profiles;
 create trigger trg_profiles_role
   before insert or update on public.profiles
   for each row execute function public.handle_profile_role();
-
-create policy "profiles_select" on public.profiles
-  for select using (id = auth.uid() or public.is_super_admin());
-create policy "profiles_insert" on public.profiles
-  for insert with check (auth.uid() = id);
-create policy "profiles_update" on public.profiles
-  for update using (id = auth.uid() or public.is_super_admin())
-  with check (id = auth.uid() or public.is_super_admin());
-create policy "profiles_delete" on public.profiles
-  for delete using (public.is_super_admin());
-
--- ----------------------------------------------------------------------------
--- companies  (styling JSONB holds { settings, template } per company)
--- ----------------------------------------------------------------------------
-
-create table if not exists public.companies (
-  id         uuid primary key default gen_random_uuid(),
-  name       text not null,
-  owner_id   uuid not null references auth.users(id) on delete cascade,
-  email      text not null default '',
-  address    text not null default '',
-  logo_url   text not null default '',
-  currency   text not null default 'USD',
-  styling    jsonb not null default '{
-    "settings": { "lastSequence": 0, "invoicePrefix": "INV-", "defaultTaxRate": 0 },
-    "template": {
-      "invoiceTitleColor": "#2563eb",
-      "companyNameColor": "#0f172a",
-      "topBorder":  { "visible": false, "color": "#2563eb", "thickness": 4 },
-      "bottomBorder": { "visible": false, "color": "#2563eb", "thickness": 4 },
-      "table": { "headerStyle": "filled", "headerColor": "#eff6ff", "zebra": false }
-    }
-  }'::jsonb,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-alter table public.companies enable row level security;
-
-create policy "companies_select" on public.companies for select
-  using (owner_id = auth.uid() or public.is_company_member(id) or public.is_super_admin());
-create policy "companies_insert" on public.companies for insert
-  with check (owner_id = auth.uid());
-create policy "companies_update" on public.companies for update
-  using (owner_id = auth.uid() or public.is_super_admin())
-  with check (owner_id = auth.uid() or public.is_super_admin());
-create policy "companies_delete" on public.companies for delete
-  using (owner_id = auth.uid() or public.is_super_admin());
-
--- ----------------------------------------------------------------------------
--- company_members  (multi-tenant access grants)
--- ----------------------------------------------------------------------------
-
-create table if not exists public.company_members (
-  company_id uuid not null references public.companies(id) on delete cascade,
-  user_id    uuid not null references auth.users(id) on delete cascade,
-  role       text not null default 'member' check (role in ('owner', 'admin', 'member')),
-  created_at timestamptz not null default now(),
-  primary key (company_id, user_id)
-);
-
-alter table public.company_members enable row level security;
-
-create policy "members_select" on public.company_members for select
-  using (user_id = auth.uid() or public.is_super_admin());
-create policy "members_insert" on public.company_members for insert
-  with check (public.is_super_admin() or (select c.owner_id = auth.uid() from public.companies c where c.id = company_id));
-create policy "members_delete" on public.company_members for delete
-  using (user_id = auth.uid() or public.is_super_admin());
-
--- ----------------------------------------------------------------------------
--- clients  (scoped to a company)
--- ----------------------------------------------------------------------------
-
-create table if not exists public.clients (
-  id              uuid primary key default gen_random_uuid(),
-  company_id      uuid not null references public.companies(id) on delete cascade,
-  name            text not null,
-  contact_company text not null default '',
-  email           text not null default '',
-  phone           text not null default '',
-  address         text not null default '',
-  created_at      timestamptz not null default now(),
-  updated_at      timestamptz not null default now()
-);
-
-alter table public.clients enable row level security;
-
-create policy "clients_all" on public.clients for all
-  using (public.is_company_member(company_id))
-  with check (public.is_company_member(company_id));
-
--- ----------------------------------------------------------------------------
--- bank_accounts
--- ----------------------------------------------------------------------------
-
-create table if not exists public.bank_accounts (
-  id             uuid primary key default gen_random_uuid(),
-  company_id     uuid not null references public.companies(id) on delete cascade,
-  name           text not null,
-  account_number text not null default '',
-  holder         text not null default '',
-  created_at     timestamptz not null default now(),
-  updated_at     timestamptz not null default now()
-);
-
-alter table public.bank_accounts enable row level security;
-
-create policy "bank_accounts_all" on public.bank_accounts for all
-  using (public.is_company_member(company_id))
-  with check (public.is_company_member(company_id));
-
--- ----------------------------------------------------------------------------
--- invoices  (line items are stored as JSONB on the row for atomic saves)
--- ----------------------------------------------------------------------------
-
-create table if not exists public.invoices (
-  id               uuid primary key default gen_random_uuid(),
-  company_id       uuid not null references public.companies(id) on delete cascade,
-  number           text not null,
-  client_id        uuid references public.clients(id) on delete set null,
-  client_snapshot  jsonb,
-  project_name     text not null default '',
-  invoice_date     date not null,
-  due_date         date not null,
-  tax_rate         numeric not null default 0,
-  bank_account_id  uuid references public.bank_accounts(id) on delete set null,
-  bank_snapshot    jsonb,
-  notes            text not null default '',
-  status           text not null default 'DRAFT' check (status in ('DRAFT', 'PENDING', 'PAID')),
-  items            jsonb not null default '[]'::jsonb,
-  created_at       timestamptz not null default now(),
-  updated_at       timestamptz not null default now()
-);
-
-alter table public.invoices enable row level security;
-
-create policy "invoices_all" on public.invoices for all
-  using (public.is_company_member(company_id))
-  with check (public.is_company_member(company_id));
 
 -- ----------------------------------------------------------------------------
 -- Admin RPCs (security definer — the ONLY way to manage auth users client-side)
