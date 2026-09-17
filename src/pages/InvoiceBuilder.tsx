@@ -1,23 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   CheckCircle2,
   ChevronDown,
   CircleAlert,
-  Copy,
-  Link2,
   Palette,
   Plus,
+  Printer,
   Save,
   Trash2,
   UserPlus,
 } from "lucide-react";
-import { SiWhatsapp } from "react-icons/si";
 import { useInvoiceData } from "../context/InvoiceDataContext";
 import { useToast } from "../components/Toast";
 import { formatIDR, toISODate } from "../lib/format";
-import { grandTotal, itemAmount } from "../lib/invoice";
-import { buildWhatsAppMessage, whatsAppShareUrl } from "../lib/phone";
+import { itemAmount } from "../lib/invoice";
 import Button from "../components/Button";
 import ClientCombobox from "../components/ClientCombobox";
 import ClientModal from "../components/ClientModal";
@@ -181,15 +178,10 @@ export default function InvoiceBuilder() {
   const [taxRate, setTaxRate] = useState(0);
   const [bankAccountId, setBankAccountId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
-  const [status, setStatus] = useState<InvoiceStatus>("PENDING");
+  const [status, setStatus] = useState<InvoiceStatus>("DRAFT");
   const [clientModalOpen, setClientModalOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [templateOpen, setTemplateOpen] = useState(false);
-
-  // Public share-link state — populated by "Save & Generate Invoice Link".
-  const shareRef = useRef<HTMLDivElement | null>(null);
-  const [shareInfo, setShareInfo] = useState<{ invoice: Invoice; link: string } | null>(null);
-  const [copied, setCopied] = useState(false);
 
   // Hydrate form state once the data is ready (edit mode prefills).
   useEffect(() => {
@@ -235,26 +227,6 @@ export default function InvoiceBuilder() {
   const hasTax = (Number(taxRate) || 0) > 0;
   const tax = (subtotal * (Number(taxRate) || 0)) / 100;
   const total = subtotal + tax;
-
-  // Share panel values — WhatsApp deep link uses the client's CURRENT phone
-  // (not the invoice snapshot) so legacy clients without a phone can be fixed.
-  const shareClient = shareInfo
-    ? (data.clients.find((c) => c.id === shareInfo.invoice.clientId) ?? null)
-    : null;
-  const sharePhone = shareClient?.phone?.trim() ?? "";
-  const canShareWhatsApp = Boolean(shareInfo && sharePhone);
-  const whatsAppHref =
-    shareInfo && sharePhone
-      ? whatsAppShareUrl(
-          sharePhone,
-          buildWhatsAppMessage({
-            clientName: shareInfo.invoice.clientSnapshot?.name ?? "Customer",
-            invoiceNumber: shareInfo.invoice.number,
-            grandTotal: formatIDR(grandTotal(shareInfo.invoice)),
-            link: shareInfo.link,
-          })
-        )
-      : null;
 
   // Template customization → persisted to LocalStorage via the shared context.
   const patchTemplate = (patch: Partial<TemplateCustomization>) =>
@@ -337,35 +309,13 @@ export default function InvoiceBuilder() {
     navigate("/invoices");
   };
 
-  const handleSaveAndLink = () => {
+  const handleSaveAndPrint = () => {
     if (!persist()) return;
-    const invoice = buildInvoice();
-    if (!invoice) return;
-    const link = `${window.location.origin}/i/${invoice.id}`;
-    setShareInfo({ invoice, link });
-    showToast("Invoice saved — share link ready");
-    // Bring the share panel into view (the action bar sits at the bottom).
-    window.setTimeout(
-      () => shareRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }),
-      60
-    );
-  };
-
-  const copyLink = async () => {
-    if (!shareInfo) return;
-    try {
-      await navigator.clipboard.writeText(shareInfo.link);
-    } catch {
-      const ta = document.createElement("textarea");
-      ta.value = shareInfo.link;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      ta.remove();
-    }
-    setCopied(true);
-    showToast("Invoice link copied");
-    window.setTimeout(() => setCopied(false), 2000);
+    showToast("Invoice Saved");
+    window.setTimeout(() => {
+      window.print();
+      navigate("/invoices");
+    }, 150);
   };
 
   const handleClientSave = async (input: ClientInput) => {
@@ -892,75 +842,11 @@ export default function InvoiceBuilder() {
             <Save className="h-4 w-4" />
             Save
           </Button>
-          <Button variant="primary" type="button" onClick={handleSaveAndLink}>
-            <Link2 className="h-4 w-4" />
-            Save &amp; Generate Invoice Link
+          <Button variant="primary" type="button" onClick={handleSaveAndPrint}>
+            <Printer className="h-4 w-4" />
+            Save &amp; View PDF
           </Button>
         </div>
-
-        {/* Share-link panel — appears right after "Save & Generate Invoice Link" */}
-        {shareInfo && (
-          <div
-            ref={shareRef}
-            className="animate-fade-in rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5 shadow-sm"
-          >
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" aria-hidden />
-              <h2 className="text-sm font-extrabold uppercase tracking-widest text-emerald-700">
-                Invoice saved — share it
-              </h2>
-            </div>
-            <p className="mt-1 text-xs leading-relaxed text-slate-600">
-              Your client can view, print, and mark{" "}
-              <span className="font-semibold">{shareInfo.invoice.number}</span> as paid through this
-              link.
-            </p>
-
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-600">
-                <Link2 className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
-                <span className="min-w-0 flex-1 truncate" title={shareInfo.link}>
-                  {shareInfo.link}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => void copyLink()}
-                  aria-label="Copy invoice link"
-                  className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-slate-600 transition-colors duration-200 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-600 active:scale-[0.95]"
-                >
-                  {copied ? (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
-                  ) : (
-                    <Copy className="h-3.5 w-3.5" aria-hidden />
-                  )}
-                  {copied ? "Copied" : "Copy"}
-                </button>
-              </div>
-
-              <a
-                href={whatsAppHref ?? undefined}
-                target="_blank"
-                rel="noreferrer"
-                aria-disabled={!canShareWhatsApp}
-                className={`inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all duration-300 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 active:scale-[0.97] ${
-                  canShareWhatsApp
-                    ? "bg-emerald-600 text-white shadow-sm shadow-emerald-600/20 hover:bg-emerald-700 hover:shadow-md"
-                    : "pointer-events-none bg-slate-200 text-slate-400"
-                }`}
-              >
-                <SiWhatsapp className="h-4 w-4" aria-hidden />
-                Share to WhatsApp
-              </a>
-            </div>
-
-            {!canShareWhatsApp && (
-              <p className="mt-2 text-[11px] font-medium text-amber-700">
-                Add a phone number to this client (Clients → edit) to enable the WhatsApp button —
-                the link above still works.
-              </p>
-            )}
-          </div>
-        )}
       </form>
 
       {/* ---------------- Live preview column ---------------- */}
