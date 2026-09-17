@@ -1,5 +1,7 @@
+import { Component } from "react";
+import type { ErrorInfo, ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-import { LoaderCircle } from "lucide-react";
+import { AlertTriangle, LoaderCircle, RotateCcw } from "lucide-react";
 import { ToastProvider } from "./components/Toast";
 import { InvoiceDataProvider, useInvoiceData } from "./context/InvoiceDataContext";
 import Layout from "./components/Layout";
@@ -77,14 +79,62 @@ function AppRoutes() {
   );
 }
 
+class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("BillFolio render crashed:", error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-50 px-6 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-rose-100">
+            <AlertTriangle className="h-6 w-6 text-rose-600" />
+          </span>
+          <div>
+            <h1 className="text-lg font-extrabold tracking-tight text-slate-900">Something went wrong</h1>
+            <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
+              We hit an unexpected error while rendering this page. Reload to try again — if it keeps
+              happening, the message below will help your admin fix it.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-300 ease-out hover:bg-blue-700 active:scale-[0.97]"
+          >
+            <RotateCcw className="h-4 w-4" />
+            Reload page
+          </button>
+          <details className="mt-2 w-full max-w-md rounded-xl border border-slate-200 bg-white p-3 text-left">
+            <summary className="cursor-pointer text-xs font-semibold text-slate-500">Error details</summary>
+            <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-all font-mono text-xs text-rose-600">
+              {this.state.error.message}
+            </pre>
+          </details>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   return (
     <BrowserRouter>
-      <ToastProvider>
-        <InvoiceDataProvider>
-          <AppRoutes />
-        </InvoiceDataProvider>
-      </ToastProvider>
+      <AppErrorBoundary>
+        <ToastProvider>
+          <InvoiceDataProvider>
+            <AppRoutes />
+          </InvoiceDataProvider>
+        </ToastProvider>
+      </AppErrorBoundary>
     </BrowserRouter>
   );
 }
