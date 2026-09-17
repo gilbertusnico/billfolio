@@ -215,7 +215,13 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
         } = await supabase.auth.getSession();
         if (!alive) return;
         if (session?.user) {
-          await hydrateUser(session.user);
+          try {
+            await hydrateUser(session.user);
+          } catch (err) {
+            // Jangan biarkan gagal bootstrap jadi unhandled rejection — tampilkan
+            // pesan yang bisa ditindaklanjuti (mis. instruksi setup DB Supabase).
+            showToast(friendlyError(err), "error");
+          }
         } else {
           await seedSuperAdmin().catch(() => undefined);
         }
@@ -234,7 +240,7 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (nextSession?.user) {
-        void hydrateUser(nextSession.user);
+        void hydrateUser(nextSession.user).catch((err) => showToast(friendlyError(err), "error"));
       }
     });
 
