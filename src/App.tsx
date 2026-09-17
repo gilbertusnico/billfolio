@@ -14,6 +14,7 @@ import Invoices from "./pages/Invoices";
 import InvoiceBuilder from "./pages/InvoiceBuilder";
 import Clients from "./pages/Clients";
 import Settings from "./pages/Settings";
+import OnboardingPage from "./pages/admin/Onboarding";
 import AdminUsers from "./pages/admin/Users";
 import AdminCompanies from "./pages/admin/Companies";
 
@@ -26,35 +27,9 @@ function FullScreenLoading() {
   );
 }
 
-function AuthError({ message }: { message: string }) {
-  return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-6 text-center">
-      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-rose-100">
-        <AlertTriangle className="h-6 w-6 text-rose-600" />
-      </span>
-      <h1 className="mt-4 text-lg font-extrabold tracking-tight text-slate-900">Unable to connect</h1>
-      <p className="mt-1 max-w-md text-sm text-slate-500">
-        BillFolio could not connect to Supabase. Check the project URL and your network connection.
-      </p>
-      <p className="mt-4 max-w-lg break-all rounded-lg bg-white px-4 py-3 text-left font-mono text-xs text-rose-600 shadow-sm ring-1 ring-slate-200">
-        {message}
-      </p>
-      <button
-        type="button"
-        onClick={() => window.location.reload()}
-        className="mt-5 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
-      >
-        <RotateCcw className="h-4 w-4" />
-        Retry connection
-      </button>
-    </div>
-  );
-}
-
 function AppRoutes() {
-  const { authLoading, authError } = useInvoiceData();
+  const { authLoading } = useInvoiceData();
   if (authLoading) return <FullScreenLoading />;
-  if (authError) return <AuthError message={authError} />;
 
   return (
     <Routes>
@@ -63,7 +38,7 @@ function AppRoutes() {
         path="/onboarding"
         element={
           <RequireAuth>
-            <Navigate to="/" replace />
+            <OnboardingPage />
           </RequireAuth>
         }
       />

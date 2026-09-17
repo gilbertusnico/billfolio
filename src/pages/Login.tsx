@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, FileText, Lock, Receipt, ShieldCheck, User, Users } from "lucide-react";
+import { FileText, Lock, Receipt, ShieldCheck, User, Users } from "lucide-react";
 import { useInvoiceData } from "../context/InvoiceDataContext";
 import { useToast } from "../components/Toast";
 import { signInWithUsername } from "../lib/api";
@@ -23,7 +23,6 @@ export default function LoginPage() {
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -129,7 +128,7 @@ export default function LoginPage() {
                   className={`${FIELD_CLASS} pl-10`}
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="e.g. nico"
+                  placeholder="e.g. Nico"
                   autoFocus
                 />
               </div>
@@ -144,22 +143,13 @@ export default function LoginPage() {
                 <input
                   id="password"
                   name="password"
-                  type={showPassword ? "text" : "password"}
+                  type="password"
                   autoComplete="current-password"
-                  className={`${FIELD_CLASS} pl-10 pr-11`}
+                  className={`${FIELD_CLASS} pl-10`}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((visible) => !visible)}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  title={showPassword ? "Hide password" : "Show password"}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 transition-colors hover:text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
               </div>
             </div>
 
