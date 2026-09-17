@@ -210,7 +210,7 @@ function mapBankAccount(row: BankRow): BankAccount {
   };
 }
 
-type InvoiceRow = {
+export type InvoiceRow = {
   id: string;
   number: string;
   client_id: string | null;
@@ -228,7 +228,7 @@ type InvoiceRow = {
   updated_at: string;
 };
 
-function mapInvoice(row: InvoiceRow): Invoice {
+export function mapInvoice(row: InvoiceRow): Invoice {
   return {
     id: row.id,
     number: row.number,

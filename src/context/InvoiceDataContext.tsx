@@ -38,23 +38,12 @@ import {
   upsertBankAccountRow,
   upsertClientRow,
   upsertInvoiceRow,
+  mapInvoice,
 } from "../lib/api";
+import type { InvoiceRow } from "../lib/api";
 import { useToast } from "../components/Toast";
 
 const ACTIVE_COMPANY_KEY = "invoice_app_active_company_id";
-const AUTH_TIMEOUT_MS = 10_000;
-
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => {
-      window.setTimeout(
-        () => reject(new Error("Supabase did not respond within 10 seconds. Check VITE_SUPABASE_URL and your network connection.")),
-        timeoutMs
-      );
-    }),
-  ]);
-}
 
 export type WorkspaceView = CompanyWorkspace & { profile: Company };
 
@@ -64,7 +53,6 @@ interface InvoiceDataContextValue {
   userProfile: UserProfile | null;
   isSuperAdmin: boolean;
   authLoading: boolean;
-  authError: string | null;
   signOut: () => Promise<void>;
   changePassword: (newPassword: string) => Promise<void>;
 
@@ -124,7 +112,6 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
   const { showToast } = useToast();
 
   const [authReady, setAuthReady] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
@@ -227,24 +214,19 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
       try {
         const {
           data: { session },
-        } = await withTimeout(supabase.auth.getSession(), AUTH_TIMEOUT_MS);
+        } = await supabase.auth.getSession();
         if (!alive) return;
-        setAuthError(null);
         if (session?.user) {
           try {
             await hydrateUser(session.user);
           } catch (err) {
-            const message = friendlyError(err);
-            setAuthError(message);
-            showToast(message, "error");
+            // Jangan biarkan gagal bootstrap jadi unhandled rejection — tampilkan
+            // pesan yang bisa ditindaklanjuti (mis. instruksi setup DB Supabase).
+            showToast(friendlyError(err), "error");
           }
         } else {
           await seedSuperAdmin().catch(() => undefined);
         }
-      } catch (err) {
-        const message = friendlyError(err);
-        setAuthError(message);
-        showToast(message, "error");
       } finally {
         if (alive) setAuthReady(true);
       }
@@ -260,7 +242,6 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (nextSession?.user) {
-        setAuthError(null);
         void hydrateUser(nextSession.user).catch((err) => showToast(friendlyError(err), "error"));
       }
     });
@@ -270,6 +251,105 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
       subscription.unsubscribe();
     };
   }, [hydrateUser, resetAll]);
+
+  /* ------------------------------------------------------------------ */
+  /* Live invoice sync — a client pressing "PAID" on the public /i/:id   */
+  /* link updates this view instantly (realtime); refetch on window      */
+  /* focus as a fallback for environments without realtime.              */
+  /* ------------------------------------------------------------------ */
+
+  useEffect(() => {
+    if (!activeCompanyId) return;
+    const channel = supabase
+      .channel(`invoices-realtime:${activeCompanyId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "invoices",
+          filter: `company_id=eq.${activeCompanyId}`,
+        },
+        (payload) => {
+          const inv = mapInvoice((payload.new as unknown) as InvoiceRow);
+          setView((v) =>
+            v && !v.invoices.some((i) => i.id === inv.id) ? { ...v, invoices: [...v.invoices, inv] } : v
+          );
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "invoices",
+          filter: `company_id=eq.${activeCompanyId}`,
+        },
+        (payload) => {
+          const inv = mapInvoice((payload.new as unknown) as InvoiceRow);
+          setView((v) =>
+            v ? { ...v, invoices: v.invoices.map((i) => (i.id === inv.id ? inv : i)) } : v
+          );
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "invoices",
+          filter: `company_id=eq.${activeCompanyId}`,
+        },
+        (payload) => {
+          const deletedId = (payload.old as { id?: string } | null)?.id;
+          setView((v) =>
+            v && deletedId ? { ...v, invoices: v.invoices.filter((i) => i.id !== deletedId) } : v
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [activeCompanyId]);
+
+  // Silent refetch when the tab regains focus — belt & braces beside realtime.
+  useEffect(() => {
+    let alive = true;
+    const refetch = async () => {
+      const companyId = activeCompanyIdRef.current;
+      if (!companyId || !alive || document.visibilityState !== "visible") return;
+      try {
+        const payload = await fetchWorkspace(companyId);
+        if (!alive || companyId !== activeCompanyIdRef.current) return;
+        const company = companiesRef.current.find((c) => c.id === companyId);
+        setView((v) =>
+          company && v && v.profile.id === companyId
+            ? {
+                ...v,
+                ...payload,
+                settings: company.styling.settings,
+                template: company.styling.template,
+                profile: company,
+              }
+            : v
+        );
+      } catch {
+        /* silent — realtime is the primary sync path */
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refetch();
+    };
+    window.addEventListener("focus", () => void refetch());
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      alive = false;
+      window.removeEventListener("focus", () => void refetch());
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   /* ------------------------------------------------------------------ */
   /* Active company switching                                            */
@@ -511,7 +591,6 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
     userProfile: profile,
     isSuperAdmin,
     authLoading: !authReady,
-    authError,
     signOut,
     changePassword,
 

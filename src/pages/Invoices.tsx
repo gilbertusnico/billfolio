@@ -1,20 +1,37 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, FileText, Plus, Receipt, Search } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  Plus,
+  Receipt,
+  Search,
+} from "lucide-react";
 import { useInvoiceData } from "../context/InvoiceDataContext";
+import { useToast } from "../components/Toast";
 import { formatDate, formatIDR, getDisplayStatus } from "../lib/format";
 import { grandTotal } from "../lib/invoice";
 import StatusBadge from "../components/StatusBadge";
 import { Skeleton, SkeletonRows } from "../components/Skeleton";
 import { ButtonLink } from "../components/Button";
+import type { Invoice } from "../types";
 
 const PAGE_SIZE = 8;
 
 export default function Invoices() {
-  const { data, isLoading } = useInvoiceData();
+  const { data, isLoading, upsertInvoice } = useInvoiceData();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
+
+  /** Quick admin action: flip a non-paid invoice to PAID straight from the table. */
+  const markPaid = (inv: Invoice) => {
+    upsertInvoice({ ...inv, status: "PAID", updatedAt: new Date().toISOString() });
+    showToast(`${inv.number} marked as PAID`);
+  };
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -140,7 +157,23 @@ export default function Invoices() {
                       {formatIDR(grandTotal(inv))}
                     </td>
                     <td className="px-5 py-3.5">
-                      <StatusBadge status={getDisplayStatus(inv, now)} />
+                      <span className="flex items-center gap-1.5">
+                        <StatusBadge status={getDisplayStatus(inv, now)} />
+                        {getDisplayStatus(inv, now) !== "PAID" && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              markPaid(inv);
+                            }}
+                            aria-label={`Mark ${inv.number} as PAID`}
+                            title="Mark as PAID"
+                            className="cursor-pointer rounded-md p-1.5 text-slate-400 transition-colors duration-200 hover:bg-emerald-50 hover:text-emerald-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-emerald-500 active:scale-[0.9]"
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </span>
                     </td>
                   </tr>
                 ))}

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import Modal from "./Modal";
 import Button from "./Button";
+import { isValidPhone, sanitizePhone } from "../lib/phone";
 import type { Client } from "../types";
 
 export interface ClientInput {
@@ -58,11 +59,21 @@ export default function ClientModal({ open, client, onClose, onSave }: ClientMod
       setError("That email address doesn't look right — check it and try again.");
       return;
     }
+    const rawPhone = (form.phone ?? "").trim();
+    if (!rawPhone) {
+      setError("Phone number is required — it's how your client receives the WhatsApp link to their invoice.");
+      return;
+    }
+    const phone = sanitizePhone(rawPhone);
+    if (!isValidPhone(phone)) {
+      setError("That phone number doesn't look right — enter at least 9 digits, e.g. 0812 3456 7890.");
+      return;
+    }
     onSave({
       name,
       company: form.company?.trim() || undefined,
       email: email || undefined,
-      phone: form.phone?.trim() || undefined,
+      phone,
       address: form.address?.trim() || undefined,
     });
   };
@@ -94,14 +105,24 @@ export default function ClientModal({ open, client, onClose, onSave }: ClientMod
             />
           </div>
           <div>
-            <label htmlFor="cm-phone" className="label">Phone</label>
+            <label htmlFor="cm-phone" className="label">
+              Phone Number <span className="text-rose-500">*</span>
+            </label>
             <input
               id="cm-phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              required
               className="input"
               value={form.phone ?? ""}
               onChange={(e) => set("phone")(e.target.value)}
-              placeholder="Phone (optional)"
+              placeholder="e.g. 0812 3456 7890"
+              aria-required="true"
             />
+            <p className="mt-1 text-[11px] text-slate-400">
+              Auto-formatted for WhatsApp — 0812… becomes 62812…
+            </p>
           </div>
         </div>
         <div>
