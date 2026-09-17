@@ -83,7 +83,7 @@ interface InvoiceDataContextValue {
   addCompany: (input: CompanyInput) => Promise<Company>;
   updateCompany: (id: string, profile: Profile) => Promise<void>;
   removeCompany: (id: string) => Promise<void>;
-  upsertClient: (client: Client) => Promise<void>;
+  upsertClient: (client: Client) => Promise<boolean>;
   deleteClient: (id: string) => Promise<void>;
   upsertInvoice: (invoice: Invoice) => Promise<void>;
   deleteInvoice: (id: string) => Promise<void>;
@@ -379,9 +379,9 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
   /* the local view is patched. Failures surface as toast notifications. */
   /* ------------------------------------------------------------------ */
 
-  const upsertClient = useCallback(async (client: Client) => {
+  const upsertClient = useCallback(async (client: Client): Promise<boolean> => {
     const companyId = activeCompanyIdRef.current;
-    if (!companyId) return;
+    if (!companyId) return false;
     try {
       await upsertClientRow(companyId, client);
       setView((v) => {
@@ -392,8 +392,10 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
           clients: exists ? v.clients.map((c) => (c.id === client.id ? client : c)) : [...v.clients, client],
         };
       });
+      return true;
     } catch (err) {
       failToast(err);
+      return false;
     }
   }, []);
 

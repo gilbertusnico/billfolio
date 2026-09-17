@@ -248,21 +248,18 @@ function mapInvoice(row: InvoiceRow): Invoice {
   };
 }
 
-export function unwrap(error: { message?: string } | null, fallback: string): Error {
+export function unwrap(error: { message?: string; code?: string; status?: number } | null, fallback: string): Error {
   const raw = error?.message ?? "";
   const cleaned = raw.replace(/^Database error saving|^Database error/i, "").trim();
 
-  // "permission denied for table X" = Supabase RLS table grants belum diterapkan.
-  // Terjemahkan ke instruksi konkret alih-alih error mentah yang membingungkan.
-  if (/permission denied for table/i.test(cleaned)) {
-    const table = /permission denied for table (\w+)/i.exec(cleaned)?.[1];
+  if (error?.status === 401 || error?.status === 403 || /row-level security|permission denied/i.test(cleaned)) {
     return new Error(
-      table
-        ? `Database access is denied for "${table}" — the Supabase setup SQL hasn't been applied yet. Run the full file supabase/migrations/0002_grants.sql in the Supabase SQL Editor (see docs/supabase-setup.md).`
-        : `Database access was denied — apply the setup SQL in supabase/migrations/0002_grants.sql in the Supabase SQL Editor (see docs/supabase-setup.md).`
+      `Supabase denied access to this data. Run supabase/migrations/0002_grants.sql in the Supabase SQL Editor, then verify the signed-in user is a member of the selected company. Details: ${cleaned || `HTTP ${error.status}`}`
     );
   }
 
+  // "permission denied for table X" = Supabase RLS table grants belum diterapkan.
+  // Terjemahkan ke instruksi konkret alih-alih error mentah yang membingungkan.
   return new Error(cleaned || fallback);
 }
 

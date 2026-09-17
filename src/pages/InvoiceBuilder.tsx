@@ -318,10 +318,11 @@ export default function InvoiceBuilder() {
     }, 150);
   };
 
-  const handleClientSave = (input: ClientInput) => {
+  const handleClientSave = async (input: ClientInput) => {
     const nowIso = new Date().toISOString();
     const client = { id: crypto.randomUUID(), ...input, createdAt: nowIso, updatedAt: nowIso };
-    upsertClient(client);
+    const saved = await upsertClient(client);
+    if (!saved) return;
     setClientId(client.id);
     setClientModalOpen(false);
     showToast("Client Added");
