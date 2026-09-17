@@ -364,7 +364,13 @@ grant execute on function public.create_company(text, text, text, text) to authe
 do $$
 declare v_id uuid;
 begin
-  if not exists (select 1 from auth.users where email = 'nico@internal.app') then
+  -- Find-or-create the auth user by email. auth.users is NOT dropped when
+  -- public tables are, so a stale sign-up (client auto-seed or an earlier
+  -- partial run) may already own "nico@internal.app" and the old
+  -- `if not exists` would skip BOTH inserts, leaving profiles empty.
+  select id into v_id from auth.users where email = 'nico@internal.app';
+
+  if v_id is null then
     insert into auth.users (
       instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
       raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -376,8 +382,15 @@ begin
       '{}'::jsonb, now(), now()
     )
     returning id into v_id;
-
-    insert into public.profiles (id, username, role, raw_password)
-    values (v_id, 'Nico', 'super_admin', 'Nico123');
+  else
+    -- Repair leftover account from a client-side sign-up: confirm it, or
+    -- password login fails with "Email not confirmed".
+    update auth.users set email_confirmed_at = coalesce(email_confirmed_at, now()) where id = v_id;
   end if;
+
+  -- Idempotent profile upsert (always run) so a missing profile row is
+  -- repaired instead of silently skipped.
+  insert into public.profiles (id, username, role, raw_password)
+  values (v_id, 'Nico', 'super_admin', 'Nico123')
+  on conflict (id) do nothing;
 end $$;
