@@ -42,6 +42,19 @@ import {
 import { useToast } from "../components/Toast";
 
 const ACTIVE_COMPANY_KEY = "invoice_app_active_company_id";
+const AUTH_TIMEOUT_MS = 10_000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      window.setTimeout(
+        () => reject(new Error("Supabase did not respond within 10 seconds. Check VITE_SUPABASE_URL and your network connection.")),
+        timeoutMs
+      );
+    }),
+  ]);
+}
 
 export type WorkspaceView = CompanyWorkspace & { profile: Company };
 
@@ -51,6 +64,7 @@ interface InvoiceDataContextValue {
   userProfile: UserProfile | null;
   isSuperAdmin: boolean;
   authLoading: boolean;
+  authError: string | null;
   signOut: () => Promise<void>;
   changePassword: (newPassword: string) => Promise<void>;
 
@@ -110,6 +124,7 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
   const { showToast } = useToast();
 
   const [authReady, setAuthReady] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
@@ -212,19 +227,24 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
       try {
         const {
           data: { session },
-        } = await supabase.auth.getSession();
+        } = await withTimeout(supabase.auth.getSession(), AUTH_TIMEOUT_MS);
         if (!alive) return;
+        setAuthError(null);
         if (session?.user) {
           try {
             await hydrateUser(session.user);
           } catch (err) {
-            // Jangan biarkan gagal bootstrap jadi unhandled rejection — tampilkan
-            // pesan yang bisa ditindaklanjuti (mis. instruksi setup DB Supabase).
-            showToast(friendlyError(err), "error");
+            const message = friendlyError(err);
+            setAuthError(message);
+            showToast(message, "error");
           }
         } else {
           await seedSuperAdmin().catch(() => undefined);
         }
+      } catch (err) {
+        const message = friendlyError(err);
+        setAuthError(message);
+        showToast(message, "error");
       } finally {
         if (alive) setAuthReady(true);
       }
@@ -240,6 +260,7 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (nextSession?.user) {
+        setAuthError(null);
         void hydrateUser(nextSession.user).catch((err) => showToast(friendlyError(err), "error"));
       }
     });
@@ -488,6 +509,7 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
     userProfile: profile,
     isSuperAdmin,
     authLoading: !authReady,
+    authError,
     signOut,
     changePassword,
 
