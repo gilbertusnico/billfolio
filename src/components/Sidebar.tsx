@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
-import { NavLink } from "react-router-dom";
-import { FileText, LayoutDashboard, Receipt, Settings, Users, X } from "lucide-react";
+import { NavLink, useNavigate } from "react-router-dom";
+import { Building2, FileText, LayoutDashboard, LogOut, Receipt, Settings, Users, X } from "lucide-react";
 import CompanySwitcher from "./CompanySwitcher";
+import { useInvoiceData } from "../context/InvoiceDataContext";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -10,12 +11,60 @@ const NAV_ITEMS = [
   { to: "/settings", label: "Settings", icon: Settings, end: false },
 ];
 
+const ADMIN_ITEMS = [
+  { to: "/admin/users", label: "Team Users", icon: Users, end: false },
+  { to: "/admin/companies", label: "Companies & Access", icon: Building2, end: false },
+];
+
 interface SidebarProps {
   open: boolean;
   onClose: () => void;
 }
 
+interface NavItem {
+  to: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  end: boolean;
+}
+
+function NavLinks({ items, onClose }: { items: NavItem[]; onClose: () => void }) {
+  return (
+    <>
+      {items.map(({ to, label, icon: Icon, end }) => (
+        <NavLink
+          key={to}
+          to={to}
+          end={end}
+          onClick={onClose}
+          className={({ isActive }) =>
+            `group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-300 ease-in-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 ${
+              isActive
+                ? "bg-blue-600/15 font-semibold text-blue-300"
+                : "font-medium text-slate-400 hover:translate-x-1 hover:bg-white/5 hover:text-slate-100"
+            }`
+          }
+        >
+          {({ isActive }) => (
+            <>
+              <span
+                className={`absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full transition-all duration-300 ${
+                  isActive ? "bg-blue-500" : "bg-transparent"
+                }`}
+              />
+              <Icon className="h-5 w-5 shrink-0" strokeWidth={isActive ? 2.25 : 2} />
+              <span>{label}</span>
+            </>
+          )}
+        </NavLink>
+      ))}
+    </>
+  );
+}
+
 export default function Sidebar({ open, onClose }: SidebarProps) {
+  const { isSuperAdmin, userProfile, signOut } = useInvoiceData();
+  const navigate = useNavigate();
   const asideRef = useRef<HTMLElement>(null);
 
   // Close on Escape.
@@ -35,7 +84,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     if (!node) return;
     const focusables = () =>
       Array.from(
-        node.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input, select, textarea')
+        node.querySelectorAll<HTMLElement>("a[href], button:not([disabled]), input, select, textarea")
       ).filter((el) => el.offsetParent !== null);
     focusables()[0]?.focus();
     const onTab = (e: KeyboardEvent) => {
@@ -55,6 +104,11 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     node.addEventListener("keydown", onTab);
     return () => node.removeEventListener("keydown", onTab);
   }, [open]);
+
+  const handleSignOut = () => {
+    onClose();
+    void signOut().then(() => navigate("/login", { replace: true }));
+  };
 
   return (
     <aside
@@ -85,37 +139,43 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       <CompanySwitcher onClose={onClose} />
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={end}
-            onClick={onClose}
-            className={({ isActive }) =>
-              `group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-300 ease-in-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 ${
-                isActive
-                  ? "bg-blue-600/15 font-semibold text-blue-300"
-                  : "font-medium text-slate-400 hover:translate-x-1 hover:bg-white/5 hover:text-slate-100"
-              }`
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <span
-                  className={`absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full transition-all duration-300 ${
-                    isActive ? "bg-blue-500" : "bg-transparent"
-                  }`}
-                />
-                <Icon className="h-5 w-5 shrink-0" strokeWidth={isActive ? 2.25 : 2} />
-                <span>{label}</span>
-              </>
-            )}
-          </NavLink>
-        ))}
+        <NavLinks items={NAV_ITEMS} onClose={onClose} />
+
+        {isSuperAdmin && (
+          <>
+            <p className="flex items-center gap-2 px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              <span aria-hidden className="h-1 w-1 rounded-full bg-violet-500" />
+              Administration
+            </p>
+            <NavLinks items={ADMIN_ITEMS} onClose={onClose} />
+          </>
+        )}
       </nav>
 
-      <div className="shrink-0 border-t border-white/10 px-5 py-4 text-[11px] font-medium leading-relaxed text-slate-500">
-        Local-first · your data stays in this browser.
+      {/* Account footer */}
+      <div className="shrink-0 border-t border-white/10 px-4 py-3">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-extrabold text-white">
+            {(userProfile?.username ?? "?").charAt(0).toUpperCase()}
+          </span>
+          <div className="min-w-0 flex-1 leading-tight">
+            <p className="truncate text-sm font-bold text-white">{userProfile?.username ?? "…"}</p>
+            <p className="text-[11px] font-medium text-slate-400">
+              {isSuperAdmin ? "Super Admin" : "Team member"}
+            </p>
+          </div>
+          <button
+            onClick={() => void handleSignOut()}
+            aria-label="Sign out"
+            title="Sign out"
+            className="cursor-pointer rounded-lg p-2 text-slate-400 transition-colors duration-200 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-white active:scale-[0.92]"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
+        <p className="mt-2.5 text-[11px] font-medium text-slate-500">
+          Cloud synced via Supabase · signed in as {userProfile?.username ?? "…"}
+        </p>
       </div>
     </aside>
   );

@@ -1,23 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { ChangeEvent } from "react";
-import {
-  Banknote,
-  Download,
-  ImagePlus,
-  Landmark,
-  Pencil,
-  Plus,
-  Trash2,
-  Upload,
-  X,
-} from "lucide-react";
+import { Banknote, ImagePlus, Landmark, LogOut, Pencil, Plus, ShieldCheck, Trash2, X } from "lucide-react";
 import { useInvoiceData } from "../context/InvoiceDataContext";
 import { useToast } from "../components/Toast";
 import Button from "../components/Button";
 import Modal from "../components/Modal";
 import ConfirmDialog from "../components/ConfirmDialog";
-import { sanitize } from "../lib/storage";
-import type { BankAccount, InvoiceAppData } from "../types";
+import type { BankAccount } from "../types";
 
 interface ProfileDraft {
   companyName: string;
@@ -60,12 +49,14 @@ function Panel({
 export default function Settings() {
   const {
     data,
-    storage,
     isLoading,
     updateProfile,
     upsertBankAccount,
     deleteBankAccount,
-    replaceData,
+    userProfile,
+    isSuperAdmin,
+    changePassword,
+    signOut,
   } = useInvoiceData();
   const { showToast } = useToast();
 
@@ -80,7 +71,12 @@ export default function Settings() {
   const [bankForm, setBankForm] = useState<BankDraft>(EMPTY_BANK);
   const [bankError, setBankError] = useState("");
   const [deletingBank, setDeletingBank] = useState<BankAccount | null>(null);
-  const [importPending, setImportPending] = useState<InvoiceAppData | null>(null);
+
+  // Password change state
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwError, setPwError] = useState("");
+  const [pwSaving, setPwSaving] = useState(false);
 
   // Keep the profile draft in sync when the active company changes.
   useEffect(() => {
@@ -91,8 +87,6 @@ export default function Settings() {
       logoUrl: data.profile.logoUrl,
     });
   }, [data.profile]);
-
-  const importInputRef = useRef<HTMLInputElement>(null);
 
   /* ---------------- Profile ---------------- */
 
@@ -191,57 +185,35 @@ export default function Settings() {
     setDeletingBank(null);
   };
 
-  /* ---------------- Data export / import ---------------- */
+  /* ---------------- Account & password ---------------- */
 
-  const handleExport = () => {
-    const blob = new Blob([JSON.stringify(storage, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "invoice-app-data.json";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    showToast("Data exported — keep the file safe");
-  };
-
-  const onImportFile = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    if (!file.name.toLowerCase().endsWith(".json")) {
-      showToast("Please choose a .json file", "error");
+  const handleChangePassword = async () => {
+    if (!newPassword) {
+      setPwError("Enter a new password.");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const cleaned = sanitize(JSON.parse(String(reader.result)) as unknown);
-        setImportPending(cleaned);
-      } catch {
-        showToast("That file isn't valid JSON — nothing was changed", "error");
-      }
-    };
-    reader.readAsText(file);
+    if (newPassword.length < 6) {
+      setPwError("Password must be at least 6 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPwError("The two passwords don't match.");
+      return;
+    }
+    setPwSaving(true);
+    setPwError("");
+    try {
+      await changePassword(newPassword);
+      setNewPassword("");
+      setConfirmPassword("");
+      showToast("Password updated — use it next time you sign in");
+    } catch {
+      setPwError("We couldn't update your password — try again.");
+    } finally {
+      setPwSaving(false);
+    }
   };
 
-  const confirmImport = () => {
-    if (!importPending) return;
-    replaceData(importPending);
-    setImportPending(null);
-    showToast("Data imported — current data was replaced");
-  };
-
-  const imported = importPending;
-  const importedTotals = imported
-    ? {
-        companies: imported.companies.length,
-        clients: imported.workspaces.reduce((n, w) => n + w.clients.length, 0),
-        invoices: imported.workspaces.reduce((n, w) => n + w.invoices.length, 0),
-        bankAccounts: imported.workspaces.reduce((n, w) => n + w.bankAccounts.length, 0),
-      }
-    : null;
   const bankUsedCount = (id: string) => data.invoices.filter((i) => i.bankAccountId === id).length;
 
   return (
@@ -398,43 +370,90 @@ export default function Settings() {
         </div>
       </Panel>
 
-      {/* Data management */}
+      {/* Account */}
       <Panel
-        title="Data & Backup"
-        description="Take a copy of everything, or restore an earlier backup."
+        title="Your Account"
+        description="Sign-in credentials and details for your BillFolio account."
       >
-        <div className="overflow-hidden rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 px-5 py-4 text-white shadow-sm">
-          <p className="text-sm font-bold">Your data lives safely in your browser</p>
-          <p className="mt-0.5 text-xs text-blue-100">
-            Nothing is uploaded anywhere. Export a backup file whenever you want a copy you can
-            carry around.
-          </p>
+        <div className="flex flex-wrap items-center gap-4">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-base font-extrabold text-white">
+            {(userProfile?.username ?? "?").charAt(0).toUpperCase()}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="flex flex-wrap items-center gap-2 font-bold text-slate-900">
+              {userProfile?.username ?? "…"}
+              {isSuperAdmin && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-700">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Super Admin
+                </span>
+              )}
+            </p>
+            <p className="text-xs text-slate-500">
+              {isSuperAdmin
+                ? "You can manage users, companies and workspace access."
+                : "You can access the companies shared with you by an admin."}
+            </p>
+          </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap gap-3">
-          <Button type="button" onClick={handleExport}>
-            <Download className="h-4 w-4 animate-pulse" />
-            Export Data
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => importInputRef.current?.click()}
-          >
-            <Upload className="h-4 w-4 animate-pulse" />
-            Import Data
-          </Button>
-          <input
-            ref={importInputRef}
-            type="file"
-            accept=".json,application/json"
-            className="sr-only"
-            onChange={onImportFile}
-          />
+        <div className="mt-6 grid gap-4 border-t border-slate-100 pt-6 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label htmlFor="new-password" className="mb-1.5 block text-sm font-semibold text-slate-700">
+              New password
+            </label>
+            <input
+              id="new-password"
+              type="text"
+              className={FIELD_CLASS}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="At least 6 characters"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label htmlFor="confirm-password" className="mb-1.5 block text-sm font-semibold text-slate-700">
+              Confirm new password
+            </label>
+            <input
+              id="confirm-password"
+              type="text"
+              className={FIELD_CLASS}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Repeat the new password"
+            />
+          </div>
+          {pwError && (
+            <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-sm font-medium text-rose-600 sm:col-span-2">
+              {pwError}
+            </p>
+          )}
+          <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
+            <Button
+              type="button"
+              onClick={() => void handleChangePassword()}
+              disabled={pwSaving || !newPassword}
+            >
+              {pwSaving ? "Updating…" : "Update Password"}
+            </Button>
+            {isSuperAdmin && (
+              <span className="text-xs text-slate-400">
+                Default admin credentials: <span className="font-mono text-slate-500">Nico / Nico123</span>
+              </span>
+            )}
+          </div>
         </div>
-        <p className="mt-3 text-xs text-slate-400">
-          Import replaces all companies, invoices, clients and settings with the backup's contents.
-        </p>
+
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-6">
+          <p className="text-xs text-slate-400">
+            Data is stored securely in Supabase — accessible from any device with your account.
+          </p>
+          <Button type="button" variant="danger" onClick={() => void signOut()}>
+            <LogOut className="h-4 w-4" />
+            Sign Out
+          </Button>
+        </div>
       </Panel>
 
       {/* Bank modal */}
@@ -516,30 +535,6 @@ export default function Settings() {
         confirmLabel="Delete Account"
         onConfirm={confirmDeleteBank}
         onCancel={() => setDeletingBank(null)}
-      />
-
-      {/* Import confirm */}
-      <ConfirmDialog
-        open={importPending !== null}
-        title="Import this backup?"
-        message={
-          imported && importedTotals ? (
-            <>
-              This backup contains <span className="font-semibold">{importedTotals.companies}</span>{" "}
-              compan{importedTotals.companies === 1 ? "y" : "ies"},{" "}
-              <span className="font-semibold">{importedTotals.clients}</span> client
-              {importedTotals.clients === 1 ? "" : "s"},{" "}
-              <span className="font-semibold">{importedTotals.invoices}</span> invoice
-              {importedTotals.invoices === 1 ? "" : "s"} and{" "}
-              <span className="font-semibold">{importedTotals.bankAccounts}</span> bank account
-              {importedTotals.bankAccounts === 1 ? "" : "s"}. Importing replaces{" "}
-              <span className="font-semibold">all</span> current data — this can't be undone.
-            </>
-          ) : null
-        }
-        confirmLabel="Import & Replace"
-        onConfirm={confirmImport}
-        onCancel={() => setImportPending(null)}
       />
     </div>
   );

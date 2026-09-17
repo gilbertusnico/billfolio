@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import type { Session } from "@supabase/supabase-js";
+import type { User } from "@supabase/supabase-js";
 import type {
   BankAccount,
   Client,
@@ -39,6 +39,7 @@ import {
   upsertClientRow,
   upsertInvoiceRow,
 } from "../lib/api";
+import { useToast } from "../components/Toast";
 
 const ACTIVE_COMPANY_KEY = "invoice_app_active_company_id";
 
@@ -46,7 +47,7 @@ export type WorkspaceView = CompanyWorkspace & { profile: Company };
 
 interface InvoiceDataContextValue {
   /* Auth */
-  user: Session["user"] | null;
+  user: User | null;
   userProfile: UserProfile | null;
   isSuperAdmin: boolean;
   authLoading: boolean;
@@ -89,10 +90,7 @@ function fallbackCompany(): Company {
     address: "",
     logoUrl: "",
     ownerId: "",
-    styling: {
-      settings: { ...DEFAULT_SETTINGS },
-      template: structuredClone(DEFAULT_TEMPLATE),
-    },
+    styling: { settings: { ...DEFAULT_SETTINGS }, template: structuredClone(DEFAULT_TEMPLATE) },
     createdAt: "",
     updatedAt: "",
   };
@@ -109,8 +107,10 @@ const FALLBACK_VIEW: WorkspaceView = {
 };
 
 export function InvoiceDataProvider({ children }: { children: ReactNode }) {
+  const { showToast } = useToast();
+
   const [authReady, setAuthReady] = useState(false);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -119,7 +119,6 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
 
   // Refs so callbacks never read stale values.
-  const sessionRef = useRef<Session | null>(null);
   const companiesRef = useRef<Company[]>([]);
   const activeCompanyIdRef = useRef<string | null>(null);
   const profileRef = useRef<UserProfile | null>(null);
@@ -134,15 +133,8 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     profileRef.current = profile;
   }, [profile]);
-  useEffect(() => {
-    sessionRef.current = session;
-  }, [session]);
 
-  const showError = (err: unknown) => {
-    // Errors are surfaced to the caller; this hook is only a safety net for
-    // fire-and-forget mutations (see each mutator below).
-    console.error("[InvoiceData] ", err);
-  };
+  const failToast = (err: unknown) => showToast(friendlyError(err), "error");
 
   /* ------------------------------------------------------------------ */
   /* Loading a company's workspace                                       */
@@ -154,7 +146,7 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
     try {
       const company = companiesRef.current.find((c) => c.id === companyId);
       const payload = await fetchWorkspace(companyId);
-      if (seq !== loadSeq.current) return; // a newer request superseded this one
+      if (seq !== loadSeq.current) return; // superseded by a newer request
       if (!company || companyId !== activeCompanyIdRef.current) return;
       setView({
         companyId,
@@ -164,7 +156,7 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
         profile: company,
       });
     } catch (err) {
-      if (seq === loadSeq.current) showError(err);
+      if (seq === loadSeq.current) failToast(err);
     } finally {
       if (seq === loadSeq.current) setWorkspaceLoading(false);
     }
@@ -175,13 +167,13 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
   /* ------------------------------------------------------------------ */
 
   const hydrateUser = useCallback(
-    async (user: NonNullable<Session["user"]>) => {
-      setSession((prev) => (prev?.user.id === user.id ? prev : ({ ...(prev ?? {}), user } as Session)));
-      let prof = await fetchUserProfile(user.id).catch(() => null);
+    async (authUser: User) => {
+      setUser(authUser);
+      let prof = await fetchUserProfile(authUser.id).catch(() => null);
       if (!prof) {
-        const fallbackName = (user.email ?? "user").split("@")[0] || "user";
-        await ensureProfile(user.id, fallbackName).catch(() => undefined);
-        prof = await fetchUserProfile(user.id).catch(() => null);
+        const fallbackName = (authUser.email ?? "user").split("@")[0] || "user";
+        await ensureProfile(authUser.id, fallbackName).catch(() => undefined);
+        prof = await fetchUserProfile(authUser.id).catch(() => null);
       }
       setProfile(prof);
 
@@ -207,39 +199,41 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
     setActiveCompanyIdState(null);
     setView(null);
     setProfile(null);
-    setSession(null);
+    setUser(null);
     setWorkspaceLoading(false);
+    localStorage.removeItem(ACTIVE_COMPANY_KEY);
   }, []);
 
-  // Subscribe to auth changes (fires on mount for the current session too).
+  // Subscribe to auth changes; on first mount it restores the current session.
   useEffect(() => {
     let alive = true;
 
     const bootstrap = async () => {
-      const {
-        data: { session: current },
-      } = await supabase.auth.getSession();
-      if (!alive) return;
-      if (current?.user) {
-        await hydrateUser(current.user);
-      } else {
-        // Best-effort auto-seed of the Super Admin account (never auto-logs-in).
-        await seedSuperAdmin().catch(() => undefined);
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!alive) return;
+        if (session?.user) {
+          await hydrateUser(session.user);
+        } else {
+          await seedSuperAdmin().catch(() => undefined);
+        }
+      } finally {
+        if (alive) setAuthReady(true);
       }
-      if (alive) setAuthReady(true);
     };
     void bootstrap();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      if (event === "SIGNED_OUT" || event === "USER_DELETED") {
+      if (event === "SIGNED_OUT" || event === "USER_UPDATED" && !nextSession?.user) {
         resetAll();
         setAuthReady(true);
         return;
       }
       if (nextSession?.user) {
-        setSession(nextSession);
         void hydrateUser(nextSession.user);
       }
     });
@@ -266,7 +260,7 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
   );
 
   /* ------------------------------------------------------------------ */
-  /* Company + workspace mutations                                       */
+  /* Company mutations                                                   */
   /* ------------------------------------------------------------------ */
 
   const addCompany = useCallback(
@@ -286,54 +280,60 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
     await updateCompanyProfile(id, p);
     companiesRef.current = companiesRef.current.map((c) =>
       c.id === id
-        ? { ...c, companyName: p.companyName, email: p.email, address: p.address, logoUrl: p.logoUrl, updatedAt: new Date().toISOString() }
+        ? {
+            ...c,
+            companyName: p.companyName,
+            email: p.email,
+            address: p.address,
+            logoUrl: p.logoUrl,
+            updatedAt: new Date().toISOString(),
+          }
         : c
     );
     setCompanies(companiesRef.current);
-    setView((v) => (v && v.profile.id === id ? { ...v, profile: companiesRef.current.find((c) => c.id === id)! } : v));
+    setView((v) =>
+      v && v.profile.id === id
+        ? { ...v, profile: companiesRef.current.find((c) => c.id === id)! }
+        : v
+    );
   }, []);
 
-  const removeCompany = useCallback(
-    async (id: string) => {
-      await deleteCompanyRow(id);
-      companiesRef.current = companiesRef.current.filter((c) => c.id !== id);
-      setCompanies(companiesRef.current);
-      if (activeCompanyIdRef.current === id) {
-        const next = companiesRef.current[0]?.id ?? null;
-        setActiveCompanyIdState(next);
-        if (next) {
-          localStorage.setItem(ACTIVE_COMPANY_KEY, next);
-          void loadWorkspace(next);
-        } else {
-          localStorage.removeItem(ACTIVE_COMPANY_KEY);
-          setView(null);
-        }
+  const removeCompany = useCallback(async (id: string) => {
+    await deleteCompanyRow(id);
+    companiesRef.current = companiesRef.current.filter((c) => c.id !== id);
+    setCompanies(companiesRef.current);
+    if (activeCompanyIdRef.current === id) {
+      const next = companiesRef.current[0]?.id ?? null;
+      setActiveCompanyIdState(next);
+      if (next) {
+        localStorage.setItem(ACTIVE_COMPANY_KEY, next);
+        void loadWorkspace(next);
+      } else {
+        localStorage.removeItem(ACTIVE_COMPANY_KEY);
+        setView(null);
       }
-    },
-    [loadWorkspace]
-  );
+    }
+  }, []);
 
   const applyStyling = useCallback(async (patch: Partial<CompanyStyling>) => {
     const id = activeCompanyIdRef.current;
-    if (!id) return;
     const company = companiesRef.current.find((c) => c.id === id);
-    if (!company) return;
+    if (!id || !company) return;
     const styling: CompanyStyling = { ...company.styling, ...patch };
     companiesRef.current = companiesRef.current.map((c) => (c.id === id ? { ...c, styling } : c));
     setCompanies(companiesRef.current);
-    setView((v) =>
-      v && v.profile.id === id
-        ? { ...v, ...patch, profile: { ...v.profile, styling } }
-        : v
-    );
-    await updateCompanyStyling(id, styling);
+    setView((v) => (v && v.profile.id === id ? { ...v, ...patch, profile: { ...v.profile, styling } } : v));
+    try {
+      await updateCompanyStyling(id, styling);
+    } catch (err) {
+      failToast(err);
+    }
   }, []);
 
   const updateProfile = useCallback(
     (p: Profile) => {
       const id = activeCompanyIdRef.current;
-      if (id) return updateCompany(id, p);
-      return Promise.resolve();
+      return id ? updateCompany(id, p) : Promise.resolve();
     },
     [updateCompany]
   );
@@ -347,83 +347,100 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
     [applyStyling]
   );
 
-  /** Applies a workspace mutator to both the DB and the local view. */
-  const mutateView = useCallback(
-    (fn: (v: WorkspaceView) => WorkspaceView) => {
-      setView((v) => (v ? fn(v) : v));
-      if (!v) return; // note: `v` is the previous value read below
-    },
-    []
-  );
-
   /* ------------------------------------------------------------------ */
-  /* Fire-and-forget workspace CRUD (toasts on failure are handled by    */
-  /* the call pages via catch → error toast)                             */
+  /* Workspace CRUD — every change is persisted to Supabase first, then  */
+  /* the local view is patched. Failures surface as toast notifications. */
   /* ------------------------------------------------------------------ */
 
   const upsertClient = useCallback(async (client: Client) => {
     const companyId = activeCompanyIdRef.current;
     if (!companyId) return;
-    await upsertClientRow(companyId, client);
-    setView((v) => {
-      if (!v) return v;
-      const exists = v.clients.some((c) => c.id === client.id);
-      return {
-        ...v,
-        clients: exists ? v.clients.map((c) => (c.id === client.id ? client : c)) : [...v.clients, client],
-      };
-    });
+    try {
+      await upsertClientRow(companyId, client);
+      setView((v) => {
+        if (!v) return v;
+        const exists = v.clients.some((c) => c.id === client.id);
+        return {
+          ...v,
+          clients: exists ? v.clients.map((c) => (c.id === client.id ? client : c)) : [...v.clients, client],
+        };
+      });
+    } catch (err) {
+      failToast(err);
+    }
   }, []);
 
   const deleteClient = useCallback(async (clientId: string) => {
-    await deleteClientRow(clientId);
-    setView((v) => (v ? { ...v, clients: v.clients.filter((c) => c.id !== clientId) } : v));
+    try {
+      await deleteClientRow(clientId);
+      setView((v) => (v ? { ...v, clients: v.clients.filter((c) => c.id !== clientId) } : v));
+    } catch (err) {
+      failToast(err);
+    }
   }, []);
 
   const upsertInvoice = useCallback(async (invoice: Invoice) => {
     const companyId = activeCompanyIdRef.current;
     if (!companyId) return;
-    await upsertInvoiceRow(companyId, invoice);
-    setView((v) => {
-      if (!v) return v;
-      const exists = v.invoices.some((i) => i.id === invoice.id);
-      return {
-        ...v,
-        invoices: exists ? v.invoices.map((i) => (i.id === invoice.id ? invoice : i)) : [...v.invoices, invoice],
-      };
-    });
+    try {
+      await upsertInvoiceRow(companyId, invoice);
+      setView((v) => {
+        if (!v) return v;
+        const exists = v.invoices.some((i) => i.id === invoice.id);
+        return {
+          ...v,
+          invoices: exists ? v.invoices.map((i) => (i.id === invoice.id ? invoice : i)) : [...v.invoices, invoice],
+        };
+      });
+    } catch (err) {
+      failToast(err);
+    }
   }, []);
 
   const deleteInvoice = useCallback(async (invoiceId: string) => {
-    await deleteInvoiceRow(invoiceId);
-    setView((v) => (v ? { ...v, invoices: v.invoices.filter((i) => i.id !== invoiceId) } : v));
+    try {
+      await deleteInvoiceRow(invoiceId);
+      setView((v) => (v ? { ...v, invoices: v.invoices.filter((i) => i.id !== invoiceId) } : v));
+    } catch (err) {
+      failToast(err);
+    }
   }, []);
 
   const upsertBankAccount = useCallback(async (account: BankAccount) => {
     const companyId = activeCompanyIdRef.current;
     if (!companyId) return;
-    await upsertBankAccountRow(companyId, account);
-    setView((v) => {
-      if (!v) return v;
-      const exists = v.bankAccounts.some((a) => a.id === account.id);
-      return {
-        ...v,
-        bankAccounts: exists ? v.bankAccounts.map((a) => (a.id === account.id ? account : a)) : [...v.bankAccounts, account],
-      };
-    });
+    try {
+      await upsertBankAccountRow(companyId, account);
+      setView((v) => {
+        if (!v) return v;
+        const exists = v.bankAccounts.some((a) => a.id === account.id);
+        return {
+          ...v,
+          bankAccounts: exists
+            ? v.bankAccounts.map((a) => (a.id === account.id ? account : a))
+            : [...v.bankAccounts, account],
+        };
+      });
+    } catch (err) {
+      failToast(err);
+    }
   }, []);
 
   const deleteBankAccount = useCallback(async (accountId: string) => {
-    await deleteBankAccountRow(accountId);
-    setView((v) =>
-      v
-        ? {
-            ...v,
-            bankAccounts: v.bankAccounts.filter((a) => a.id !== accountId),
-            invoices: v.invoices.map((i) => (i.bankAccountId === accountId ? { ...i, bankAccountId: "" } : i)),
-          }
-        : v
-    );
+    try {
+      await deleteBankAccountRow(accountId);
+      setView((v) =>
+        v
+          ? {
+              ...v,
+              bankAccounts: v.bankAccounts.filter((a) => a.id !== accountId),
+              invoices: v.invoices.map((i) => (i.bankAccountId === accountId ? { ...i, bankAccountId: "" } : i)),
+            }
+          : v
+      );
+    } catch (err) {
+      failToast(err);
+    }
   }, []);
 
   /* ------------------------------------------------------------------ */
@@ -440,34 +457,28 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
     }
   }, [resetAll]);
 
-  const changePassword = useCallback(
-    async (newPassword: string) => {
-      await changeOwnPassword(newPassword);
-      const me = profileRef.current;
-      if (me) setProfile({ ...me, rawPassword: newPassword });
-    },
-    []
-  );
+  const changePassword = useCallback(async (newPassword: string) => {
+    await changeOwnPassword(newPassword);
+    const me = profileRef.current;
+    if (me) setProfile({ ...me, rawPassword: newPassword });
+  }, []);
 
   /* ------------------------------------------------------------------ */
   /* Derived values                                                      */
   /* ------------------------------------------------------------------ */
 
-  const activeCompany = view?.profile && activeCompanyId === view.profile.id ? view.profile : null;
+  const activeCompany = view && activeCompanyId === view.profile.id ? view.profile : null;
   const isSuperAdmin = profile?.role === "super_admin";
 
   const data: CompanyView = view ?? FALLBACK_VIEW;
 
   const storage = useMemo<InvoiceAppData>(
-    () => ({
-      companies,
-      workspaces: view ? [{ ...view }] : [],
-    }),
+    () => ({ companies, workspaces: view ? [{ ...view }] : [] }),
     [companies, view]
   );
 
   const value: InvoiceDataContextValue = {
-    user: session?.user ?? null,
+    user,
     userProfile: profile,
     isSuperAdmin,
     authLoading: !authReady,
@@ -480,7 +491,7 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
     activeCompany,
     activeCompanyId,
     isLoading: workspaceLoading,
-    needsOnboarding: authReady && !!session?.user && !isSuperAdmin && companies.length === 0,
+    needsOnboarding: authReady && !!user && !isSuperAdmin && companies.length === 0,
 
     setActiveCompany,
     addCompany,
@@ -505,6 +516,3 @@ export function useInvoiceData(): InvoiceDataContextValue {
   if (!ctx) throw new Error("useInvoiceData must be used within <InvoiceDataProvider>");
   return ctx;
 }
-
-// Re-exported for pages that want the friendly error text.
-export { friendlyError };

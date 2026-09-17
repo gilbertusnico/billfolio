@@ -234,7 +234,7 @@ function mapInvoice(row: InvoiceRow): Invoice {
   };
 }
 
-function unwrapError(error: { message?: string } | null, fallback: string): Error {
+export function unwrap(error: { message?: string } | null, fallback: string): Error {
   return new Error(error?.message?.replace(/^Database error saving|^Database error/i, "").trim() || fallback);
 }
 
@@ -277,7 +277,7 @@ export async function seedSuperAdmin(): Promise<void> {
 
 export async function changeOwnPassword(newPassword: string): Promise<void> {
   const { error: authError } = await supabase.auth.updateUser({ password: newPassword });
-  if (authError) throw unwrapError(authError, "We couldn't update your password — try again.");
+  if (authError) throw unwrap(authError, "We couldn't update your password — try again.");
   const { data: sessionData } = await supabase.auth.getUser();
   if (sessionData.user) {
     await supabase

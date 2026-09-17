@@ -4,6 +4,7 @@ import { useInvoiceData } from "../context/InvoiceDataContext";
 import CompanyModal from "./CompanyModal";
 import type { CompanyInput } from "./CompanyModal";
 import { useToast } from "./Toast";
+import { friendlyError, ACCENT_COLOR } from "../lib/api";
 import type { Company } from "../types";
 
 function CompanyAvatar({ company, size = "md" }: { company: Company; size?: "md" | "sm" }) {
@@ -81,9 +82,13 @@ export default function CompanySwitcher({ onClose }: CompanySwitcherProps) {
     onClose?.();
   };
 
-  const handleAdd = (input: CompanyInput) => {
-    const company = addCompany(input);
-    showToast(`${company.companyName || "Company"} created — it's now active`);
+  const handleAdd = async (input: CompanyInput) => {
+    try {
+      const company = await addCompany(input);
+      showToast(`${company.companyName || "Company"} created — it's now active`);
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
     setModalOpen(false);
     setOpen(false);
     onClose?.();
@@ -95,6 +100,18 @@ export default function CompanySwitcher({ onClose }: CompanySwitcherProps) {
     email: "",
     address: "",
     logoUrl: "",
+    ownerId: "",
+    currency: "USD",
+    styling: {
+      settings: { lastSequence: 0, invoicePrefix: "INV-", defaultTaxRate: 0 },
+      template: {
+        invoiceTitleColor: ACCENT_COLOR,
+        companyNameColor: "#0f172a",
+        topBorder: { visible: false, color: ACCENT_COLOR, thickness: 4 },
+        bottomBorder: { visible: false, color: ACCENT_COLOR, thickness: 4 },
+        table: { headerStyle: "filled", headerColor: "#eff6ff", zebra: false },
+      },
+    },
     createdAt: "",
     updatedAt: "",
   };

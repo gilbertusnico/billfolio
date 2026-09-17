@@ -12,6 +12,8 @@ function pageTitle(pathname: string): string {
   if (pathname.startsWith("/invoices/")) return "Edit Invoice";
   if (pathname === "/clients") return "Clients";
   if (pathname === "/settings") return "Settings";
+  if (pathname === "/admin/users") return "Team Users";
+  if (pathname === "/admin/companies") return "Companies & Access";
   return "BillFolio";
 }
 
