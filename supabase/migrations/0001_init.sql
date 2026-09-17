@@ -394,3 +394,19 @@ begin
   values (v_id, 'Nico', 'super_admin', 'Nico123')
   on conflict (id) do nothing;
 end $$;
+
+-- ----------------------------------------------------------------------------
+-- Grants for PostgREST roles (anon / authenticated)
+-- RLS policies decide WHICH rows; these GRANTs decide whether the role may
+-- reach the table at all. Without them every authenticated query fails with
+-- "permission denied for table ...". Idempotent — safe on re-run.
+-- ----------------------------------------------------------------------------
+
+grant usage on schema public to anon, authenticated;
+
+grant select, insert, update, delete on public.profiles to authenticated;
+grant select, insert, update, delete on public.companies to authenticated;
+grant select, insert, update, delete on public.company_members to authenticated;
+grant select, insert, update, delete on public.clients to authenticated;
+grant select, insert, update, delete on public.bank_accounts to authenticated;
+grant select, insert, update, delete on public.invoices to authenticated;
