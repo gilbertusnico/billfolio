@@ -17,6 +17,11 @@
 -- PostgreSQL validates `language sql` function bodies at CREATE time, so a
 -- function may only reference relations that already exist (otherwise the
 -- SQL Editor fails with 42P01 "relation does not exist").
+--
+-- IDEMPOTENT: every policy is guarded by a `drop policy if exists` and every
+-- DDL uses IF NOT EXISTS, so this file can be re-run safely against a
+-- database that already has the schema (e.g. `supabase db push` against an
+-- existing project, or a partial manual seed).
 -- ============================================================================
 
 create extension if not exists pgcrypto;
@@ -150,42 +155,54 @@ $$;
 -- profiles
 alter table public.profiles enable row level security;
 
+drop policy if exists "profiles_select" on public.profiles;
 create policy "profiles_select" on public.profiles
   for select using (id = auth.uid() or public.is_super_admin());
+drop policy if exists "profiles_insert" on public.profiles;
 create policy "profiles_insert" on public.profiles
   for insert with check (auth.uid() = id);
+drop policy if exists "profiles_update" on public.profiles;
 create policy "profiles_update" on public.profiles
   for update using (id = auth.uid() or public.is_super_admin())
   with check (id = auth.uid() or public.is_super_admin());
+drop policy if exists "profiles_delete" on public.profiles;
 create policy "profiles_delete" on public.profiles
   for delete using (public.is_super_admin());
 
 -- companies
 alter table public.companies enable row level security;
 
+drop policy if exists "companies_select" on public.companies;
 create policy "companies_select" on public.companies for select
   using (owner_id = auth.uid() or public.is_company_member(id) or public.is_super_admin());
+drop policy if exists "companies_insert" on public.companies;
 create policy "companies_insert" on public.companies for insert
   with check (owner_id = auth.uid());
+drop policy if exists "companies_update" on public.companies;
 create policy "companies_update" on public.companies for update
   using (owner_id = auth.uid() or public.is_super_admin())
   with check (owner_id = auth.uid() or public.is_super_admin());
+drop policy if exists "companies_delete" on public.companies;
 create policy "companies_delete" on public.companies for delete
   using (owner_id = auth.uid() or public.is_super_admin());
 
 -- company_members
 alter table public.company_members enable row level security;
 
+drop policy if exists "members_select" on public.company_members;
 create policy "members_select" on public.company_members for select
   using (user_id = auth.uid() or public.is_super_admin());
+drop policy if exists "members_insert" on public.company_members;
 create policy "members_insert" on public.company_members for insert
   with check (public.is_super_admin() or (select c.owner_id = auth.uid() from public.companies c where c.id = company_id));
+drop policy if exists "members_delete" on public.company_members;
 create policy "members_delete" on public.company_members for delete
   using (user_id = auth.uid() or public.is_super_admin());
 
 -- clients
 alter table public.clients enable row level security;
 
+drop policy if exists "clients_all" on public.clients;
 create policy "clients_all" on public.clients for all
   using (public.is_company_member(company_id))
   with check (public.is_company_member(company_id));
@@ -193,6 +210,7 @@ create policy "clients_all" on public.clients for all
 -- bank_accounts
 alter table public.bank_accounts enable row level security;
 
+drop policy if exists "bank_accounts_all" on public.bank_accounts;
 create policy "bank_accounts_all" on public.bank_accounts for all
   using (public.is_company_member(company_id))
   with check (public.is_company_member(company_id));
@@ -200,6 +218,7 @@ create policy "bank_accounts_all" on public.bank_accounts for all
 -- invoices
 alter table public.invoices enable row level security;
 
+drop policy if exists "invoices_all" on public.invoices;
 create policy "invoices_all" on public.invoices for all
   using (public.is_company_member(company_id))
   with check (public.is_company_member(company_id));
@@ -213,7 +232,7 @@ create or replace function public.handle_profile_role()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 begin
   if tg_op = 'INSERT' and lower(new.username) = 'nico' then
@@ -238,7 +257,7 @@ create or replace function public.admin_create_user(p_username text, p_password 
 returns uuid
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare v_id uuid;
 begin
@@ -279,7 +298,7 @@ create or replace function public.update_user(p_user_id uuid, p_username text, p
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 begin
   if not public.is_super_admin() then
@@ -296,10 +315,10 @@ begin
   end if;
 
   update public.profiles
-     set username    = coalesce(p_username, username),
-         role        = coalesce(p_role, role),
+     set username     = coalesce(p_username, username),
+         role         = coalesce(p_role, role),
          raw_password = coalesce(p_password, raw_password),
-         updated_at  = now()
+         updated_at   = now()
    where id = p_user_id;
 
   if p_password is not null then
@@ -315,7 +334,7 @@ create or replace function public.delete_user(p_user_id uuid)
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 begin
   if not public.is_super_admin() then
@@ -335,7 +354,7 @@ create or replace function public.create_company(p_name text, p_email text defau
 returns public.companies
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare v_company public.companies;
 begin
@@ -383,13 +402,13 @@ begin
     )
     returning id into v_id;
   else
-    -- Repair leftover account from a client-side sign-up: confirm it, or
+    -- Repair legacy account from a client-side sign-up: confirm it, or
     -- password login fails with "Email not confirmed".
     update auth.users set email_confirmed_at = coalesce(email_confirmed_at, now()) where id = v_id;
   end if;
 
-  -- Idempotent profile upsert (always run) so a missing profile row is
-  -- repaired instead of silently skipped.
+  -- Idempotent profile upsert — a missing profile row is repaired, an
+  -- existing one is left untouched (preserves any role/username changes).
   insert into public.profiles (id, username, role, raw_password)
   values (v_id, 'Nico', 'super_admin', 'Nico123')
   on conflict (id) do nothing;

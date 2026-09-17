@@ -18,10 +18,24 @@ import type {
  * The URL + anon key are PUBLISHABLE by design — Supabase anon keys ship inside
  * every browser bundle; all real security is enforced server-side by RLS
  * (see supabase/migrations/0001_init.sql). NEVER put a service_role key here.
+ *
+ * The values come from the platform env-var store (VITE_ prefix → inlined into
+ * the client bundle at build time). Set VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY
+ * in Environment settings — linking a Supabase project does this automatically.
  * ------------------------------------------------------------------------- */
-export const SUPABASE_URL = "https://ewmqsdctvpzmpvyzfqyo.supabase.co";
-export const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3bXFzZGN0dnB6bXB2eXpmcXlvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1NzM3MTIsImV4cCI6MjEwNTE0OTcxMn0.9iCBKR8cppx8zh4o5j8vcfg5X3PqEoD0XqgEydk3nbY";
+
+function requiredEnv(name: string): string {
+  const value = import.meta.env[name as keyof ImportMetaEnv];
+  if (!value) {
+    throw new Error(
+      `Missing ${name} — add it in the project's Environment settings (VITE_ prefix required for browser code).`
+    );
+  }
+  return value;
+}
+
+export const SUPABASE_URL = requiredEnv("VITE_SUPABASE_URL");
+export const SUPABASE_ANON_KEY = requiredEnv("VITE_SUPABASE_ANON_KEY");
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
