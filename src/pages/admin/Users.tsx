@@ -259,7 +259,8 @@ export default function AdminUsersPage() {
             </label>
             <input
               id="nu-password"
-              type="text"
+              type="password"
+              autoComplete="new-password"
               className={FIELD_CLASS}
               value={draft.password}
               onChange={(e) => setDraft((d) => ({ ...d, password: e.target.value }))}
@@ -324,7 +325,8 @@ export default function AdminUsersPage() {
               </label>
               <input
                 id="eu-password"
-                type="text"
+                type="password"
+                autoComplete="new-password"
                 className={FIELD_CLASS}
                 value={draft.password}
                 onChange={(e) => setDraft((d) => ({ ...d, password: e.target.value }))}
