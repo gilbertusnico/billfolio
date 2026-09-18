@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { CheckCircle2, FileQuestion, LoaderCircle, Printer, TriangleAlert } from "lucide-react";
 import { sanitizeStyling, supabase } from "../lib/api";
 import { getDisplayStatus } from "../lib/format";
+import ConfirmDialog from "../components/ConfirmDialog";
 import InvoicePreview from "../components/InvoicePreview";
 import StatusBadge from "../components/StatusBadge";
 import { useToast } from "../components/Toast";
@@ -94,6 +95,7 @@ export default function PublicInvoice() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [marking, setMarking] = useState(false);
+  const [confirmPaidOpen, setConfirmPaidOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -236,7 +238,7 @@ export default function PublicInvoice() {
           ) : isActionable ? (
             <button
               type="button"
-              onClick={handleMarkPaid}
+              onClick={() => setConfirmPaidOpen(true)}
               disabled={marking}
               className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-emerald-600/20 transition-all duration-300 ease-out hover:bg-emerald-700 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-60"
             >
@@ -261,6 +263,27 @@ export default function PublicInvoice() {
           </p>
         )}
       </main>
+
+      {/* Double-confirm — the client can't flip the invoice to PAID by accident. */}
+      <ConfirmDialog
+        open={confirmPaidOpen}
+        title="Confirm your payment"
+        message={
+          <>
+            Please double-check before confirming — once marked as PAID, the sender is
+            notified instantly that the full amount for{" "}
+            <span className="font-semibold">{invoice.number}</span> has been transferred.
+          </>
+        }
+        confirmLabel="Yes, I've paid"
+        cancelLabel="Not yet"
+        confirmVariant="primary"
+        onConfirm={() => {
+          setConfirmPaidOpen(false);
+          void handleMarkPaid();
+        }}
+        onCancel={() => setConfirmPaidOpen(false)}
+      />
     </div>
   );
 }

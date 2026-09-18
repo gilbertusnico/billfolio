@@ -190,7 +190,7 @@ export default function InvoiceBuilder() {
   const [templateOpen, setTemplateOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Public share-link state — populated by "Save & Generate Invoice Link".
+  // Public share-link state — populated by "Generate & Share Link".
   const shareRef = useRef<HTMLDivElement | null>(null);
   const [shareInfo, setShareInfo] = useState<{ invoice: Invoice; link: string } | null>(null);
   const [copied, setCopied] = useState(false);
@@ -922,11 +922,11 @@ export default function InvoiceBuilder() {
             ) : (
               <Link2 className="h-4 w-4" />
             )}
-            {saving ? "Saving…" : "Save &amp; Generate Invoice Link"}
+            {saving ? "Saving…" : "Generate &amp; Share Link"}
           </Button>
         </div>
 
-        {/* Share-link panel — appears right after "Save & Generate Invoice Link" */}
+        {/* Share-link panel — appears right after "Generate & Share Link" */}
         {shareInfo && (
           <div
             ref={shareRef}
