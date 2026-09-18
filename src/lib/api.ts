@@ -210,7 +210,7 @@ function mapBankAccount(row: BankRow): BankAccount {
   };
 }
 
-export type InvoiceRow = {
+type InvoiceRow = {
   id: string;
   number: string;
   client_id: string | null;
@@ -228,7 +228,7 @@ export type InvoiceRow = {
   updated_at: string;
 };
 
-export function mapInvoice(row: InvoiceRow): Invoice {
+function mapInvoice(row: InvoiceRow): Invoice {
   return {
     id: row.id,
     number: row.number,
@@ -343,12 +343,29 @@ export async function ensureProfile(userId: string, fallbackUsername: string): P
  * Companies & workspaces
  * ------------------------------------------------------------------------- */
 
+/**
+ * Workspaces visible to the signed-in user — only companies they own or are a
+ * member of. RLS `companies_select` now scopes this identically for every
+ * role (Super Admin included), so the sidebar switcher never lists companies
+ * the user has no access to.
+ */
 export async function fetchUserCompanies(): Promise<Company[]> {
   const { data, error } = await supabase
     .from("companies")
     .select("*")
     .order("created_at", { ascending: true });
   if (error) throw unwrap(error, "We couldn't load your companies.");
+  return (data ?? []).map((row) => mapCompany(row as unknown as CompanyRow));
+}
+
+/**
+ * Every company in BillFolio — Super Admin only (enforced inside the
+ * security-definer RPC). Used by the /admin/companies page to manage access
+ * across all workspaces, while the in-app picker stays scoped to own/member.
+ */
+export async function fetchAllCompaniesAdmin(): Promise<Company[]> {
+  const { data, error } = await supabase.rpc("admin_list_all_companies");
+  if (error) throw unwrap(error, "We couldn't load all companies.");
   return (data ?? []).map((row) => mapCompany(row as unknown as CompanyRow));
 }
 

@@ -4,9 +4,9 @@ import { useToast } from "../../components/Toast";
 import Button from "../../components/Button";
 import Modal from "../../components/Modal";
 import {
+  fetchAllCompaniesAdmin,
   fetchAllUsers,
   fetchCompanyMembers,
-  fetchUserCompanies,
   friendlyError,
   setCompanyUsers,
 } from "../../lib/api";
@@ -33,7 +33,7 @@ export default function AdminCompaniesPage() {
     setLoading(true);
     try {
       const [companyList, memberList] = await Promise.all([
-        fetchUserCompanies(),
+        fetchAllCompaniesAdmin(),
         fetchCompanyMembers(),
       ]);
       const profileList = await fetchAllUsers();
