@@ -85,7 +85,7 @@ interface InvoiceDataContextValue {
   removeCompany: (id: string) => Promise<void>;
   upsertClient: (client: Client) => Promise<boolean>;
   deleteClient: (id: string) => Promise<void>;
-  upsertInvoice: (invoice: Invoice) => Promise<void>;
+  upsertInvoice: (invoice: Invoice) => Promise<boolean>;
   deleteInvoice: (id: string) => Promise<void>;
   upsertBankAccount: (account: BankAccount) => Promise<void>;
   deleteBankAccount: (id: string) => Promise<void>;
@@ -408,9 +408,9 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const upsertInvoice = useCallback(async (invoice: Invoice) => {
+  const upsertInvoice = useCallback(async (invoice: Invoice): Promise<boolean> => {
     const companyId = activeCompanyIdRef.current;
-    if (!companyId) return;
+    if (!companyId) return false;
     try {
       await upsertInvoiceRow(companyId, invoice);
       setView((v) => {
@@ -421,8 +421,10 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
           invoices: exists ? v.invoices.map((i) => (i.id === invoice.id ? invoice : i)) : [...v.invoices, invoice],
         };
       });
+      return true;
     } catch (err) {
       failToast(err);
+      return false;
     }
   }, []);
 

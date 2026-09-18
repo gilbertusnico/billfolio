@@ -6,6 +6,7 @@ import {
   CircleAlert,
   Copy,
   Link2,
+  LoaderCircle,
   Palette,
   Plus,
   Save,
@@ -187,6 +188,7 @@ export default function InvoiceBuilder() {
   const [paidConfirmOpen, setPaidConfirmOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [templateOpen, setTemplateOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   // Public share-link state — populated by "Save & Generate Invoice Link".
   const shareRef = useRef<HTMLDivElement | null>(null);
@@ -324,33 +326,53 @@ export default function InvoiceBuilder() {
     };
   };
 
-  const persist = (): boolean => {
+  /**
+   * Persist the invoice and return the SAME instance that was written (or null
+   * when validation fails / the write fails). Callers must use this returned
+   * object — never call buildInvoice() again — because a fresh build generates
+   * a brand-new random UUID for new invoices, producing a share link that
+   * points to an invoice that was never saved.
+   */
+  const persist = async (): Promise<Invoice | null> => {
     const invoice = buildInvoice();
-    if (!invoice) return false;
-    upsertInvoice(invoice);
+    if (!invoice) return null;
+    const saved = await upsertInvoice(invoice);
+    if (!saved) return null;
     // Only a brand-new invoice consumes a sequence number.
     if (isNew) updateSettings({ ...data.settings, lastSequence: data.settings.lastSequence + 1 });
-    return true;
+    return invoice;
   };
 
-  const handleSave = () => {
-    if (!persist()) return;
-    showToast("Invoice Saved");
-    navigate("/invoices");
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const invoice = await persist();
+      if (!invoice) return;
+      showToast("Invoice Saved");
+      navigate("/invoices");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleSaveAndLink = () => {
-    if (!persist()) return;
-    const invoice = buildInvoice();
-    if (!invoice) return;
-    const link = `${window.location.origin}/i/${invoice.id}`;
-    setShareInfo({ invoice, link });
-    showToast("Invoice saved — share link ready");
-    // Bring the share panel into view (the action bar sits at the bottom).
-    window.setTimeout(
-      () => shareRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }),
-      60
-    );
+  const handleSaveAndLink = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const invoice = await persist();
+      if (!invoice) return;
+      const link = `${window.location.origin}/i/${invoice.id}`;
+      setShareInfo({ invoice, link });
+      showToast("Invoice saved — share link ready");
+      // Bring the share panel into view (the action bar sits at the bottom).
+      window.setTimeout(
+        () => shareRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }),
+        60
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const copyLink = async () => {
@@ -890,13 +912,17 @@ export default function InvoiceBuilder() {
 
         {/* Pinned actions */}
         <div className="sticky bottom-0 z-20 flex flex-col-reverse gap-3 rounded-xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur sm:flex-row sm:justify-end">
-          <Button variant="secondary" type="button" onClick={handleSave}>
+          <Button variant="secondary" type="button" onClick={() => void handleSave()} disabled={saving}>
             <Save className="h-4 w-4" />
-            Save
+            {saving ? "Saving…" : "Save"}
           </Button>
-          <Button variant="primary" type="button" onClick={handleSaveAndLink}>
-            <Link2 className="h-4 w-4" />
-            Save &amp; Generate Invoice Link
+          <Button variant="primary" type="button" onClick={() => void handleSaveAndLink()} disabled={saving}>
+            {saving ? (
+              <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <Link2 className="h-4 w-4" />
+            )}
+            {saving ? "Saving…" : "Save &amp; Generate Invoice Link"}
           </Button>
         </div>
 
