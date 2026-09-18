@@ -9,6 +9,8 @@ interface ModalProps {
   children: ReactNode;
   footer?: ReactNode;
   maxWidth?: string;
+  /** When false there is NO way to close the modal (Escape, backdrop) — caller must resolve it. */
+  dismissible?: boolean;
 }
 
 /**
@@ -22,14 +24,17 @@ export default function Modal({
   children,
   footer,
   maxWidth = "max-w-md",
+  dismissible = true,
 }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
-  // Keep onClose in a ref so the focus-trap effect only re-runs when `open`
-  // changes — an inline onClose from a parent would otherwise re-steal focus
-  // on every re-render (e.g. each keystroke in a controlled input).
+  // Keep changing props in refs so the focus-trap effect only re-runs when
+  // `open` changes — inline callbacks from a parent would otherwise re-steal
+  // focus on every re-render (e.g. each keystroke in a controlled input).
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const dismissibleRef = useRef(dismissible);
+  dismissibleRef.current = dismissible;
 
   useEffect(() => {
     if (!open) return;
@@ -49,7 +54,7 @@ export default function Modal({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
-        onCloseRef.current();
+        if (dismissibleRef.current) onCloseRef.current();
       }
       if (e.key === "Tab") {
         const list = focusables();
@@ -85,7 +90,7 @@ export default function Modal({
     <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 print:hidden">
       <div
         className="absolute inset-0 bg-slate-950/50 backdrop-blur-[2px]"
-        onClick={onClose}
+        onClick={dismissible ? onClose : undefined}
         aria-hidden
       />
       <div

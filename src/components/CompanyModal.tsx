@@ -21,9 +21,16 @@ interface CompanyModalProps {
   open: boolean;
   onClose: () => void;
   onSave: (input: CompanyInput) => void;
+  /** When false the modal cannot be closed (used to gate first-time setup). */
+  dismissible?: boolean;
 }
 
-export default function CompanyModal({ open, onClose, onSave }: CompanyModalProps) {
+export default function CompanyModal({
+  open,
+  onClose,
+  onSave,
+  dismissible = true,
+}: CompanyModalProps) {
   const { showToast } = useToast();
   const [form, setForm] = useState<CompanyInput>({
     companyName: "",
@@ -76,7 +83,7 @@ export default function CompanyModal({ open, onClose, onSave }: CompanyModalProp
   };
 
   return (
-    <Modal open={open} title="Add New Company" onClose={onClose}>
+    <Modal open={open} title="Add New Company" onClose={onClose} dismissible={dismissible}>
       <form onSubmit={submit} className="space-y-4">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
@@ -159,10 +166,14 @@ export default function CompanyModal({ open, onClose, onSave }: CompanyModalProp
         )}
 
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Cancel
+          {dismissible && (
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+          )}
+          <Button type="submit" className={dismissible ? undefined : "flex-1 justify-center"}>
+            Create Company
           </Button>
-          <Button type="submit">Create Company</Button>
         </div>
       </form>
     </Modal>

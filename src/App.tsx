@@ -15,7 +15,6 @@ import InvoiceBuilder from "./pages/InvoiceBuilder";
 import Clients from "./pages/Clients";
 import Settings from "./pages/Settings";
 import PublicInvoice from "./pages/PublicInvoice";
-import OnboardingPage from "./pages/admin/Onboarding";
 import AdminUsers from "./pages/admin/Users";
 import AdminCompanies from "./pages/admin/Companies";
 
@@ -39,14 +38,6 @@ function AppRoutes() {
     <Routes>
       <Route path="/i/:id" element={<PublicInvoice />} />
       <Route path="/login" element={<LoginPage />} />
-      <Route
-        path="/onboarding"
-        element={
-          <RequireAuth>
-            <OnboardingPage />
-          </RequireAuth>
-        }
-      />
 
       <Route
         element={
