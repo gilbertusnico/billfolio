@@ -252,9 +252,10 @@ export function unwrap(error: { message?: string; code?: string; status?: number
   const raw = error?.message ?? "";
   const cleaned = raw.replace(/^Database error saving|^Database error/i, "").trim();
 
-  if (error?.status === 401 || error?.status === 403 || /row-level security|permission denied/i.test(cleaned)) {
+  const status = error?.status;
+  if (status === 401 || status === 403 || /row-level security|permission denied/i.test(cleaned)) {
     return new Error(
-      `Supabase denied access to this data. Run supabase/migrations/0002_grants.sql in the Supabase SQL Editor, then verify the signed-in user is a member of the selected company. Details: ${cleaned || `HTTP ${error.status}`}`
+      `Supabase denied access to this data. Run supabase/migrations/0002_grants.sql in the Supabase SQL Editor, then verify the signed-in user is a member of the selected company. Details: ${cleaned || `HTTP ${status}`}`
     );
   }
 
@@ -366,7 +367,7 @@ export async function fetchUserCompanies(): Promise<Company[]> {
 export async function fetchAllCompaniesAdmin(): Promise<Company[]> {
   const { data, error } = await supabase.rpc("admin_list_all_companies");
   if (error) throw unwrap(error, "We couldn't load all companies.");
-  return (data ?? []).map((row) => mapCompany(row as unknown as CompanyRow));
+  return (data ?? []).map((row: CompanyRow) => mapCompany(row));
 }
 
 export async function createCompanyForUser(input: CompanyInput): Promise<Company> {

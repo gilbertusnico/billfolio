@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { Building2, Users as UsersIcon } from "lucide-react";
+import {
+  Building2,
+  Search as SearchIcon,
+  Users as UsersIcon,
+  X as XIcon,
+} from "lucide-react";
 import { useToast } from "../../components/Toast";
 import Button from "../../components/Button";
 import Modal from "../../components/Modal";
@@ -29,6 +34,9 @@ export default function AdminCompaniesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
 
+  const [companyQuery, setCompanyQuery] = useState("");
+  const [userQuery, setUserQuery] = useState("");
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -56,6 +64,7 @@ export default function AdminCompaniesPage() {
       members.filter((m) => m.companyId === company.id).map((m) => m.userId)
     );
     setSelected(memberIds);
+    setUserQuery("");
     setAccessFor(company);
   };
 
@@ -95,6 +104,14 @@ export default function AdminCompaniesPage() {
   const memberCount = (companyId: string) =>
     members.filter((m) => m.companyId === companyId).length;
 
+  const normalized = (s: string) => s.trim().toLowerCase();
+  const filteredCompanies = companies.filter((c) =>
+    (c.companyName || "").toLowerCase().includes(normalized(companyQuery))
+  );
+  const filteredUsers = [...users.entries()].filter(([, username]) =>
+    username.toLowerCase().includes(normalized(userQuery))
+  );
+
   return (
     <div className="space-y-6">
       <div className="animate-fade-in">
@@ -126,8 +143,46 @@ export default function AdminCompaniesPage() {
             </p>
           </div>
         ) : (
-          <ul className="divide-y divide-slate-100">
-            {companies.map((c) => (
+          <>
+            <div className="border-b border-slate-100 px-4 py-3">
+              <div className="relative">
+                <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  id="admin-company-search"
+                  type="search"
+                  aria-label="Search companies by name"
+                  className="input w-full pl-9 pr-9"
+                  placeholder="Search companies by name…"
+                  value={companyQuery}
+                  onChange={(e) => setCompanyQuery(e.target.value)}
+                />
+                {companyQuery && (
+                  <button
+                    type="button"
+                    aria-label="Clear company search"
+                    onClick={() => setCompanyQuery("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer rounded-full p-1 text-slate-400 transition-colors duration-150 hover:bg-slate-100 hover:text-slate-600"
+                  >
+                    <XIcon className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+            {filteredCompanies.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
+                <p className="font-bold text-slate-700">
+                  No companies match "{companyQuery}"
+                </p>
+                <p className="max-w-sm text-sm text-slate-500">
+                  Try a different search term, or clear the search to see every workspace.
+                </p>
+                <Button type="button" variant="ghost" onClick={() => setCompanyQuery("")}>
+                  Clear search
+                </Button>
+              </div>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {filteredCompanies.map((c) => (
               <li key={c.id} className="flex flex-wrap items-center gap-3 px-5 py-4">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
                   {c.logoUrl ? (
@@ -150,7 +205,9 @@ export default function AdminCompaniesPage() {
                 </Button>
               </li>
             ))}
-          </ul>
+              </ul>
+            )}
+          </>
         )}
       </section>
 
@@ -165,13 +222,40 @@ export default function AdminCompaniesPage() {
           Tick the team members who should see this company's invoices. The owner always keeps
           access.
         </p>
-        <div className="mt-4 max-h-96 space-y-1.5 overflow-y-auto pr-1">
+        <div className="relative mt-4">
+          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            id="admin-user-search"
+            type="search"
+            aria-label="Search users by name"
+            className="input w-full pl-9 pr-9"
+            placeholder="Search users by name…"
+            value={userQuery}
+            onChange={(e) => setUserQuery(e.target.value)}
+          />
+          {userQuery && (
+            <button
+              type="button"
+              aria-label="Clear user search"
+              onClick={() => setUserQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer rounded-full p-1 text-slate-400 transition-colors duration-150 hover:bg-slate-100 hover:text-slate-600"
+            >
+              <XIcon className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        <div className="mt-3 max-h-96 space-y-1.5 overflow-y-auto pr-1">
           {users.size === 0 ? (
             <p className="rounded-xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
               No users yet — create them from the Users page first.
             </p>
+          ) : filteredUsers.length === 0 ? (
+            <p className="rounded-xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+              No users match "<span className="font-medium">{userQuery}</span>" — try a different
+              name.
+            </p>
           ) : (
-            [...users.entries()]
+            filteredUsers
               .sort((a, b) => a[1].localeCompare(b[1]))
               .map(([userId, username]) => {
                 const isOwner = accessFor?.ownerId === userId;
