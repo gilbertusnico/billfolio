@@ -22,6 +22,7 @@ import Button from "../components/Button";
 import ClientCombobox from "../components/ClientCombobox";
 import ClientModal from "../components/ClientModal";
 import type { ClientInput } from "../components/ClientModal";
+import ConfirmDialog from "../components/ConfirmDialog";
 import InvoicePreview from "../components/InvoicePreview";
 import { Skeleton } from "../components/Skeleton";
 import type {
@@ -183,6 +184,7 @@ export default function InvoiceBuilder() {
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<InvoiceStatus>("PENDING");
   const [clientModalOpen, setClientModalOpen] = useState(false);
+  const [paidConfirmOpen, setPaidConfirmOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [templateOpen, setTemplateOpen] = useState(false);
 
@@ -501,7 +503,7 @@ export default function InvoiceBuilder() {
                   variant="secondary"
                   type="button"
                   disabled={status === "PAID"}
-                  onClick={() => setStatus("PAID")}
+                  onClick={() => setPaidConfirmOpen(true)}
                 >
                   <CheckCircle2 className="h-4 w-4" />
                   Mark as Paid
@@ -1000,6 +1002,18 @@ export default function InvoiceBuilder() {
         client={null}
         onClose={() => setClientModalOpen(false)}
         onSave={handleClientSave}
+      />
+      <ConfirmDialog
+        open={paidConfirmOpen}
+        title="Double-confirm payment status"
+        message="Are you sure you want to mark this invoice as PAID? This will update the invoice status for your team."
+        confirmLabel="Yes, mark as PAID"
+        confirmVariant="primary"
+        onConfirm={() => {
+          setStatus("PAID");
+          setPaidConfirmOpen(false);
+        }}
+        onCancel={() => setPaidConfirmOpen(false)}
       />
     </div>
   );

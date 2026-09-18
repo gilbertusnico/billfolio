@@ -16,6 +16,7 @@ import { grandTotal } from "../lib/invoice";
 import StatusBadge from "../components/StatusBadge";
 import { Skeleton, SkeletonRows } from "../components/Skeleton";
 import { ButtonLink } from "../components/Button";
+import ConfirmDialog from "../components/ConfirmDialog";
 import type { Invoice } from "../types";
 
 const PAGE_SIZE = 8;
@@ -26,11 +27,13 @@ export default function Invoices() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
+  const [pendingPaidInvoice, setPendingPaidInvoice] = useState<Invoice | null>(null);
 
   /** Quick admin action: flip a non-paid invoice to PAID straight from the table. */
   const markPaid = (inv: Invoice) => {
     upsertInvoice({ ...inv, status: "PAID", updatedAt: new Date().toISOString() });
     showToast(`${inv.number} marked as PAID`);
+    setPendingPaidInvoice(null);
   };
 
   const filtered = useMemo(() => {
@@ -164,7 +167,7 @@ export default function Invoices() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              markPaid(inv);
+                              setPendingPaidInvoice(inv);
                             }}
                             aria-label={`Mark ${inv.number} as PAID`}
                             title="Mark as PAID"
@@ -210,6 +213,22 @@ export default function Invoices() {
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={pendingPaidInvoice !== null}
+        title="Double-confirm payment status"
+        message={
+          <>
+            Are you sure you want to mark <strong>{pendingPaidInvoice?.number}</strong> as PAID?
+            This will update the invoice status for your team.
+          </>
+        }
+        confirmLabel="Yes, mark as PAID"
+        confirmVariant="primary"
+        onConfirm={() => {
+          if (pendingPaidInvoice) markPaid(pendingPaidInvoice);
+        }}
+        onCancel={() => setPendingPaidInvoice(null)}
+      />
     </div>
   );
 }
