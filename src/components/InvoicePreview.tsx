@@ -147,9 +147,11 @@ export default function InvoicePreview({
         </div>
       </div>
 
-      {/* Line items */}
-      <div className="mt-8 overflow-hidden rounded-xl border border-slate-200">
-        <table className="w-full text-sm">
+      {/* Line items — keeps its min-width and scrolls horizontally on narrow
+          screens so the Qty / Unit Price / Amount columns are never clipped
+          (print ignores the scroll and lays out full width). */}
+      <div className="mt-8 overflow-x-auto overflow-y-hidden rounded-xl border border-slate-200 print:overflow-visible">
+        <table className="w-full min-w-[560px] text-sm">
           <thead>
             <tr
               className="text-left text-[11px] uppercase tracking-wider"
