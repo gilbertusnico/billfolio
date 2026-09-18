@@ -5,6 +5,7 @@ import { FileText, Lock, Receipt, ShieldCheck, User, Users } from "lucide-react"
 import { useInvoiceData } from "../context/InvoiceDataContext";
 import { useToast } from "../components/Toast";
 import { signInWithUsername } from "../lib/api";
+import PasswordInput from "../components/PasswordInput";
 
 const FIELD_CLASS =
   "w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition-colors duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20";
@@ -140,12 +141,11 @@ export default function LoginPage() {
               </label>
               <div className="relative">
                 <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
+                <PasswordInput
                   id="password"
                   name="password"
-                  type="password"
                   autoComplete="current-password"
-                  className={`${FIELD_CLASS} pl-10`}
+                  className="pl-10"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"

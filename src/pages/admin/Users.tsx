@@ -5,6 +5,7 @@ import { useToast } from "../../components/Toast";
 import Button from "../../components/Button";
 import Modal from "../../components/Modal";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import PasswordInput from "../../components/PasswordInput";
 import {
   adminCreateUser,
   adminDeleteUser,
@@ -257,11 +258,9 @@ export default function AdminUsersPage() {
             <label htmlFor="nu-password" className="mb-1.5 block text-sm font-semibold text-slate-700">
               Password
             </label>
-            <input
+            <PasswordInput
               id="nu-password"
-              type="password"
               autoComplete="new-password"
-              className={FIELD_CLASS}
               value={draft.password}
               onChange={(e) => setDraft((d) => ({ ...d, password: e.target.value }))}
               placeholder="At least 6 characters"
@@ -323,11 +322,9 @@ export default function AdminUsersPage() {
               <label htmlFor="eu-password" className="mb-1.5 block text-sm font-semibold text-slate-700">
                 New password <span className="font-normal text-slate-400">(optional)</span>
               </label>
-              <input
+              <PasswordInput
                 id="eu-password"
-                type="password"
                 autoComplete="new-password"
-                className={FIELD_CLASS}
                 value={draft.password}
                 onChange={(e) => setDraft((d) => ({ ...d, password: e.target.value }))}
                 placeholder="Leave blank to keep the current password"

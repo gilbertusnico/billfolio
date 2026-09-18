@@ -6,6 +6,7 @@ import { useToast } from "../components/Toast";
 import Button from "../components/Button";
 import Modal from "../components/Modal";
 import ConfirmDialog from "../components/ConfirmDialog";
+import PasswordInput from "../components/PasswordInput";
 import type { BankAccount } from "../types";
 
 interface ProfileDraft {
@@ -402,10 +403,9 @@ export default function Settings() {
             <label htmlFor="new-password" className="mb-1.5 block text-sm font-semibold text-slate-700">
               New password
             </label>
-            <input
+            <PasswordInput
               id="new-password"
-              type="text"
-              className={FIELD_CLASS}
+              autoComplete="new-password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="At least 6 characters"
@@ -415,10 +415,9 @@ export default function Settings() {
             <label htmlFor="confirm-password" className="mb-1.5 block text-sm font-semibold text-slate-700">
               Confirm new password
             </label>
-            <input
+            <PasswordInput
               id="confirm-password"
-              type="text"
-              className={FIELD_CLASS}
+              autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Repeat the new password"
