@@ -12,6 +12,7 @@ import {
   Plus,
   Receipt,
   Search,
+  X,
 } from "lucide-react";
 import { SiWhatsapp } from "react-icons/si";
 import { useInvoiceData } from "../context/InvoiceDataContext";
@@ -36,6 +37,8 @@ export default function Invoices() {
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [statusTab, setStatusTab] = useState<InvoiceStatus | "ALL">("ALL");
   const [page, setPage] = useState(1);
   const [pendingPaidInvoice, setPendingPaidInvoice] = useState<Invoice | null>(null);
@@ -69,6 +72,8 @@ export default function Invoices() {
         return false;
       }
       if (statusTab !== "ALL" && getDisplayStatus(inv, now) !== statusTab) return false;
+      if (dateFrom && inv.invoiceDate < dateFrom) return false;
+      if (dateTo && inv.invoiceDate > dateTo) return false;
       return true;
     });
     // Active column sort, else newest-first (default view).
@@ -83,17 +88,30 @@ export default function Invoices() {
       return b.createdAt.localeCompare(a.createdAt) || b.updatedAt.localeCompare(a.updatedAt);
     });
     return list;
-  }, [data.invoices, query, statusTab, sort]);
+  }, [data.invoices, query, dateFrom, dateTo, statusTab, sort]);
+
+  const filtersActive = query.trim() !== "" || dateFrom !== "" || dateTo !== "" || statusTab !== "ALL";
+
+  const clearFilters = () => {
+    setQuery("");
+    setDateFrom("");
+    setDateTo("");
+    setStatusTab("ALL");
+    setPage(1);
+  };
 
   const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = { ALL: data.invoices.length };
+    const counts: Record<string, number> = { ALL: 0 };
     const now = new Date();
     for (const inv of data.invoices) {
+      if (dateFrom && inv.invoiceDate < dateFrom) continue;
+      if (dateTo && inv.invoiceDate > dateTo) continue;
+      counts.ALL += 1;
       const s = getDisplayStatus(inv, now);
       counts[s] = (counts[s] ?? 0) + 1;
     }
     return counts;
-  }, [data.invoices]);
+  }, [data.invoices, dateFrom, dateTo]);
 
   /** Export the current (search-filtered) list as an Excel-readable CSV. */
   const exportCsv = () => {
@@ -227,6 +245,58 @@ export default function Invoices() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-end gap-x-4 gap-y-3 rounded-xl border border-slate-200 bg-white px-4 py-3.5">
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="invoices-from" className="label">
+            From
+          </label>
+          <input
+            id="invoices-from"
+            type="date"
+            value={dateFrom}
+            max={dateTo || undefined}
+            onChange={(e) => {
+              setDateFrom(e.target.value);
+              setPage(1);
+            }}
+            aria-label="Invoices from date"
+            className="input py-2"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="invoices-to" className="label">
+            To
+          </label>
+          <input
+            id="invoices-to"
+            type="date"
+            value={dateTo}
+            min={dateFrom || undefined}
+            onChange={(e) => {
+              setDateTo(e.target.value);
+              setPage(1);
+            }}
+            aria-label="Invoices to date"
+            className="input py-2"
+          />
+        </div>
+        {filtersActive && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 transition-colors duration-200 hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 active:scale-[0.97]"
+          >
+            <X className="h-4 w-4" />
+            Clear filters
+          </button>
+        )}
+        {dateFrom || dateTo ? (
+          <p className="ml-auto self-center text-xs font-medium text-slate-500" aria-live="polite">
+            Filtering by invoice date
+          </p>
+        ) : null}
+      </div>
+
       <div
         role="tablist"
         aria-label="Filter invoices by status"
@@ -283,10 +353,7 @@ export default function Invoices() {
               Try a different number or client name, or clear the filters.
             </p>
             <button
-              onClick={() => {
-                setQuery("");
-                setStatusTab("ALL");
-              }}
+              onClick={clearFilters}
               className="mt-1 cursor-pointer rounded-lg px-3 py-1.5 text-sm font-semibold text-blue-600 transition-colors duration-200 hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
             >
               Clear search
