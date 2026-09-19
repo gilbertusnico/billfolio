@@ -20,7 +20,7 @@ import StatusBadge from "../components/StatusBadge";
 import { Skeleton, SkeletonRows } from "../components/Skeleton";
 import Button, { ButtonLink } from "../components/Button";
 import ConfirmDialog from "../components/ConfirmDialog";
-import type { Invoice } from "../types";
+import type { Invoice, InvoiceStatus } from "../types";
 
 const PAGE_SIZE = 8;
 
@@ -29,6 +29,7 @@ export default function Invoices() {
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
+  const [statusTab, setStatusTab] = useState<InvoiceStatus | "ALL">("ALL");
   const [page, setPage] = useState(1);
   const [pendingPaidInvoice, setPendingPaidInvoice] = useState<Invoice | null>(null);
 
@@ -41,17 +42,34 @@ export default function Invoices() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const now = new Date();
     const sorted = [...data.invoices].sort(
       (a, b) =>
         b.createdAt.localeCompare(a.createdAt) || b.updatedAt.localeCompare(a.updatedAt)
     );
-    if (!q) return sorted;
-    return sorted.filter(
-      (inv) =>
-        inv.number.toLowerCase().includes(q) ||
-        (inv.clientSnapshot?.name ?? "").toLowerCase().includes(q)
-    );
-  }, [data.invoices, query]);
+    if (!q && statusTab === "ALL") return sorted;
+    return sorted.filter((inv) => {
+      if (
+        q &&
+        !inv.number.toLowerCase().includes(q) &&
+        !(inv.clientSnapshot?.name ?? "").toLowerCase().includes(q)
+      ) {
+        return false;
+      }
+      if (statusTab !== "ALL" && getDisplayStatus(inv, now) !== statusTab) return false;
+      return true;
+    });
+  }, [data.invoices, query, statusTab]);
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = { ALL: data.invoices.length };
+    const now = new Date();
+    for (const inv of data.invoices) {
+      const s = getDisplayStatus(inv, now);
+      counts[s] = (counts[s] ?? 0) + 1;
+    }
+    return counts;
+  }, [data.invoices]);
 
   /** Export the current (search-filtered) list as an Excel-readable CSV. */
   const exportCsv = () => {
@@ -185,6 +203,38 @@ export default function Invoices() {
         </div>
       </div>
 
+      <div
+        role="tablist"
+        aria-label="Filter invoices by status"
+        className="flex flex-wrap items-center gap-1.5"
+      >
+        {(["ALL", "PENDING", "PAID", "OVERDUE"] as const).map((tab) => {
+          const active = statusTab === tab;
+          return (
+            <button
+              key={tab}
+              role="tab"
+              type="button"
+              aria-selected={active}
+              onClick={() => {
+                setStatusTab(tab);
+                setPage(1);
+              }}
+              className={`cursor-pointer rounded-full border px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 active:scale-[0.97] ${
+                active
+                  ? "border-blue-600 bg-blue-600 text-white shadow-sm"
+                  : "border-slate-200 bg-white text-slate-500 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
+              }`}
+            >
+              {tab === "ALL" ? "All" : tab}{" "}
+              <span className={active ? "text-blue-100" : "text-slate-400"}>
+                {statusCounts[tab] ?? 0}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow duration-300 hover:shadow-lg">
         {data.invoices.length === 0 ? (
           <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
@@ -206,10 +256,13 @@ export default function Invoices() {
             <Search className="h-7 w-7 text-slate-300" />
             <p className="text-sm font-bold text-slate-900">No invoices match your search</p>
             <p className="text-sm text-slate-500">
-              Try a different number or client name, or clear the search.
+              Try a different number or client name, or clear the filters.
             </p>
             <button
-              onClick={() => setQuery("")}
+              onClick={() => {
+                setQuery("");
+                setStatusTab("ALL");
+              }}
               className="mt-1 cursor-pointer rounded-lg px-3 py-1.5 text-sm font-semibold text-blue-600 transition-colors duration-200 hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
             >
               Clear search

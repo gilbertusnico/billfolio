@@ -483,6 +483,22 @@ export default function InvoiceBuilder() {
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
               />
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {[7, 14, 30].map((days) => (
+                  <button
+                    key={days}
+                    type="button"
+                    onClick={() => {
+                      const due = new Date();
+                      due.setDate(due.getDate() + days);
+                      setDueDate(toISODate(due));
+                    }}
+                    className="cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 transition-all duration-200 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 active:scale-[0.97]"
+                  >
+                    +{days} Days
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="sm:col-span-2">
               <span className="label">Client</span>
