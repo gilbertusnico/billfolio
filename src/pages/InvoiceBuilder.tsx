@@ -8,6 +8,7 @@ import {
   Link2,
   LoaderCircle,
   Palette,
+  Printer,
   Plus,
   Save,
   Trash2,
@@ -956,6 +957,15 @@ export default function InvoiceBuilder() {
           <Button variant="secondary" type="button" onClick={() => void handleSave()} disabled={saving}>
             <Save className="h-4 w-4" />
             {saving ? "Saving…" : "Save"}
+          </Button>
+          <Button
+            variant="secondary"
+            type="button"
+            onClick={() => window.print()}
+            disabled={saving}
+          >
+            <Printer className="h-4 w-4" />
+            Print / PDF
           </Button>
           <Button variant="primary" type="button" onClick={() => void handleSaveAndLink()} disabled={saving}>
             {saving ? (
