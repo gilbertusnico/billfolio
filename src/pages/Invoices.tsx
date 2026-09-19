@@ -246,7 +246,16 @@ export default function Invoices() {
                     <td className="px-5 py-3.5 text-slate-600">
                       <span className="flex items-center gap-2">
                         <FileText className="h-4 w-4 shrink-0 text-slate-300" />
-                        {inv.clientSnapshot?.name ?? "—"}
+                        <span className="flex flex-col leading-tight">
+                          <span className="font-semibold text-slate-700">
+                            {inv.clientSnapshot?.name ?? "—"}
+                          </span>
+                          {inv.clientSnapshot?.company && (
+                            <span className="text-xs text-slate-400">
+                              {inv.clientSnapshot.company}
+                            </span>
+                          )}
+                        </span>
                       </span>
                     </td>
                     <td className="px-5 py-3.5 text-slate-600">{formatDate(inv.invoiceDate)}</td>
