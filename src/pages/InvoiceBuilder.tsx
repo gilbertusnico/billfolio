@@ -922,7 +922,7 @@ export default function InvoiceBuilder() {
             ) : (
               <Link2 className="h-4 w-4" />
             )}
-            {saving ? "Saving…" : "Generate &amp; Share Link"}
+            {saving ? "Saving…" : "Generate \u0026 Share Link"}
           </Button>
         </div>
 
