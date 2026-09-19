@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  ArrowDown,
+  ArrowUp,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -11,10 +13,12 @@ import {
   Receipt,
   Search,
 } from "lucide-react";
+import { SiWhatsapp } from "react-icons/si";
 import { useInvoiceData } from "../context/InvoiceDataContext";
 import { useToast } from "../components/Toast";
 import { formatDate, formatIDR, getDisplayStatus, toISODate } from "../lib/format";
 import { grandTotal, invoiceSubtotal, taxAmount } from "../lib/invoice";
+import { buildWhatsAppMessage, whatsAppShareUrl } from "../lib/phone";
 import { downloadCsv } from "../lib/csv";
 import StatusBadge from "../components/StatusBadge";
 import { Skeleton, SkeletonRows } from "../components/Skeleton";
@@ -24,6 +28,9 @@ import type { Invoice, InvoiceStatus } from "../types";
 
 const PAGE_SIZE = 8;
 
+type SortKey = "date" | "amount";
+type SortState = { key: SortKey; dir: "asc" | "desc" } | null;
+
 export default function Invoices() {
   const { data, isLoading, upsertInvoice, updateSettings } = useInvoiceData();
   const { showToast } = useToast();
@@ -32,6 +39,16 @@ export default function Invoices() {
   const [statusTab, setStatusTab] = useState<InvoiceStatus | "ALL">("ALL");
   const [page, setPage] = useState(1);
   const [pendingPaidInvoice, setPendingPaidInvoice] = useState<Invoice | null>(null);
+  const [sort, setSort] = useState<SortState>(null);
+
+  /** Toggle column sort — first click on a new column starts ascending. */
+  const toggleSort = (key: SortKey) => {
+    setSort((prev) => {
+      if (prev && prev.key === key) return { key, dir: prev.dir === "asc" ? "desc" : "asc" };
+      return { key, dir: "asc" };
+    });
+    setPage(1);
+  };
 
   /** Quick admin action: flip a non-paid invoice to PAID straight from the table. */
   const markPaid = (inv: Invoice) => {
@@ -43,12 +60,7 @@ export default function Invoices() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const now = new Date();
-    const sorted = [...data.invoices].sort(
-      (a, b) =>
-        b.createdAt.localeCompare(a.createdAt) || b.updatedAt.localeCompare(a.updatedAt)
-    );
-    if (!q && statusTab === "ALL") return sorted;
-    return sorted.filter((inv) => {
+    const list = data.invoices.filter((inv) => {
       if (
         q &&
         !inv.number.toLowerCase().includes(q) &&
@@ -59,7 +71,19 @@ export default function Invoices() {
       if (statusTab !== "ALL" && getDisplayStatus(inv, now) !== statusTab) return false;
       return true;
     });
-  }, [data.invoices, query, statusTab]);
+    // Active column sort, else newest-first (default view).
+    list.sort((a, b) => {
+      if (sort) {
+        const cmp =
+          sort.key === "date"
+            ? a.invoiceDate.localeCompare(b.invoiceDate)
+            : grandTotal(a) - grandTotal(b);
+        if (cmp !== 0) return sort.dir === "asc" ? cmp : -cmp;
+      }
+      return b.createdAt.localeCompare(a.createdAt) || b.updatedAt.localeCompare(a.updatedAt);
+    });
+    return list;
+  }, [data.invoices, query, statusTab, sort]);
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = { ALL: data.invoices.length };
@@ -275,79 +299,168 @@ export default function Invoices() {
                 <tr className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
                   <th scope="col" className="px-5 py-3 font-semibold">Invoice</th>
                   <th scope="col" className="px-5 py-3 font-semibold">Client</th>
-                  <th scope="col" className="px-5 py-3 font-semibold">Date</th>
-                  <th scope="col" className="px-5 py-3 text-right font-semibold">Amount</th>
+                  <th
+                    scope="col"
+                    aria-sort={sort?.key === "date" ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+                    className="px-5 py-3 font-semibold"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleSort("date")}
+                      className={`group inline-flex cursor-pointer items-center gap-1 rounded transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${
+                        sort?.key === "date" ? "text-blue-600" : "hover:text-blue-600"
+                      }`}
+                    >
+                      Date
+                      {sort?.key === "date" ? (
+                        sort.dir === "asc" ? (
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        ) : (
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        )
+                      ) : (
+                        <ArrowUp className="h-3.5 w-3.5 opacity-0 transition-opacity duration-200 group-hover:opacity-50" />
+                      )}
+                    </button>
+                  </th>
+                  <th
+                    scope="col"
+                    aria-sort={sort?.key === "amount" ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+                    className="px-5 py-3 text-right font-semibold"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleSort("amount")}
+                      className={`group inline-flex cursor-pointer items-center gap-1 rounded transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${
+                        sort?.key === "amount" ? "text-blue-600" : "hover:text-blue-600"
+                      }`}
+                    >
+                      Amount
+                      {sort?.key === "amount" ? (
+                        sort.dir === "asc" ? (
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        ) : (
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        )
+                      ) : (
+                        <ArrowUp className="h-3.5 w-3.5 opacity-0 transition-opacity duration-200 group-hover:opacity-50" />
+                      )}
+                    </button>
+                  </th>
                   <th scope="col" className="px-5 py-3 font-semibold">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {pageItems.map((inv) => (
-                  <tr
-                    key={inv.id}
-                    tabIndex={0}
-                    role="link"
-                    onClick={() => navigate(`/invoices/${inv.id}`)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        navigate(`/invoices/${inv.id}`);
-                      }
-                    }}
-                    className="cursor-pointer border-b border-slate-50 transition-colors duration-200 last:border-0 hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-600"
-                  >
-                    <td className="px-5 py-3.5 font-bold text-slate-900">{inv.number}</td>
-                    <td className="px-5 py-3.5 text-slate-600">
-                      <span className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 shrink-0 text-slate-300" />
-                        <span className="flex flex-col leading-tight">
-                          <span className="font-semibold text-slate-700">
-                            {inv.clientSnapshot?.name ?? "—"}
-                          </span>
-                          {inv.clientSnapshot?.company && (
-                            <span className="text-xs text-slate-400">
-                              {inv.clientSnapshot.company}
+                {pageItems.map((inv) => {
+                  const display = getDisplayStatus(inv, now);
+                  // Share link exists once the invoice is PENDING — never for DRAFT.
+                  const shareable = display === "PENDING" || display === "OVERDUE";
+                  const phone =
+                    data.clients.find((c) => c.id === inv.clientId)?.phone?.trim() ||
+                    inv.clientSnapshot?.phone?.trim() ||
+                    "";
+                  const whatsappHref = shareable
+                    ? whatsAppShareUrl(
+                        phone,
+                        buildWhatsAppMessage({
+                          clientName: inv.clientSnapshot?.name ?? "Customer",
+                          invoiceNumber: inv.number,
+                          grandTotal: formatIDR(grandTotal(inv)),
+                          link: `${window.location.origin}/i/${inv.id}`,
+                        })
+                      )
+                    : null;
+                  return (
+                    <tr
+                      key={inv.id}
+                      tabIndex={0}
+                      role="link"
+                      onClick={() => navigate(`/invoices/${inv.id}`)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          navigate(`/invoices/${inv.id}`);
+                        }
+                      }}
+                      className="cursor-pointer border-b border-slate-50 transition-colors duration-200 last:border-0 hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-600"
+                    >
+                      <td className="px-5 py-3.5 font-bold text-slate-900">{inv.number}</td>
+                      <td className="px-5 py-3.5 text-slate-600">
+                        <span className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 shrink-0 text-slate-300" />
+                          <span className="flex flex-col leading-tight">
+                            <span className="font-semibold text-slate-700">
+                              {inv.clientSnapshot?.name ?? "—"}
                             </span>
-                          )}
+                            {inv.clientSnapshot?.company && (
+                              <span className="text-xs text-slate-400">
+                                {inv.clientSnapshot.company}
+                              </span>
+                            )}
+                          </span>
                         </span>
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 text-slate-600">{formatDate(inv.invoiceDate)}</td>
-                    <td className="px-5 py-3.5 text-right font-bold text-slate-900">
-                      {formatIDR(grandTotal(inv))}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className="flex items-center gap-1.5">
-                        <StatusBadge status={getDisplayStatus(inv, now)} />
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            duplicateInvoice(inv);
-                          }}
-                          aria-label={`Duplicate ${inv.number} as a new draft`}
-                          title="Duplicate as new draft"
-                          className="cursor-pointer rounded-md p-1.5 text-slate-400 transition-colors duration-200 hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-500 active:scale-[0.9]"
-                        >
-                          <Copy aria-hidden className="h-4 w-4" />
-                        </button>
-                        {getDisplayStatus(inv, now) !== "PAID" && (
+                      </td>
+                      <td className="px-5 py-3.5 text-slate-600">{formatDate(inv.invoiceDate)}</td>
+                      <td className="px-5 py-3.5 text-right font-bold text-slate-900">
+                        {formatIDR(grandTotal(inv))}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="flex items-center gap-1.5">
+                          <StatusBadge status={display} />
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setPendingPaidInvoice(inv);
+                              duplicateInvoice(inv);
                             }}
-                            aria-label={`Mark ${inv.number} as PAID`}
-                            title="Mark as PAID"
-                            className="cursor-pointer rounded-md p-1.5 text-slate-400 transition-colors duration-200 hover:bg-emerald-50 hover:text-emerald-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-emerald-500 active:scale-[0.9]"
+                            aria-label={`Duplicate ${inv.number} as a new draft`}
+                            title="Duplicate as new draft"
+                            className="cursor-pointer rounded-md p-1.5 text-slate-400 transition-colors duration-200 hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-500 active:scale-[0.9]"
                           >
-                            <CheckCircle2 aria-hidden className="h-4 w-4" />
+                            <Copy aria-hidden className="h-4 w-4" />
                           </button>
-                        )}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                          {shareable && (
+                            <>
+                              {whatsappHref ? (
+                                <a
+                                  href={whatsappHref}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  aria-label={`Share ${inv.number} on WhatsApp`}
+                                  title="Share on WhatsApp"
+                                  className="cursor-pointer rounded-md p-1.5 text-slate-400 transition-colors duration-200 hover:bg-emerald-50 hover:text-emerald-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-emerald-500 active:scale-[0.9]"
+                                >
+                                  <SiWhatsapp aria-hidden className="h-4 w-4" />
+                                </a>
+                              ) : (
+                                <span
+                                  aria-hidden
+                                  title="Add a phone number to this client to share on WhatsApp"
+                                  className="cursor-not-allowed rounded-md p-1.5 text-slate-300"
+                                >
+                                  <SiWhatsapp aria-hidden className="h-4 w-4" />
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPendingPaidInvoice(inv);
+                                }}
+                                aria-label={`Mark ${inv.number} as PAID`}
+                                title="Mark as PAID"
+                                className="cursor-pointer rounded-md p-1.5 text-slate-400 transition-colors duration-200 hover:bg-emerald-50 hover:text-emerald-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-emerald-500 active:scale-[0.9]"
+                              >
+                                <CheckCircle2 aria-hidden className="h-4 w-4" />
+                              </button>
+                            </>
+                          )}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
