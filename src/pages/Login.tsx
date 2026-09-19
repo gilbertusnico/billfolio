@@ -140,7 +140,7 @@ export default function LoginPage() {
                 Password
               </label>
               <div className="relative">
-                <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Lock className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <PasswordInput
                   id="password"
                   name="password"
