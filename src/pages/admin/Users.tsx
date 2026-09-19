@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { Pencil, Plus, ShieldCheck, Trash2, UserRound, Users as UsersIcon } from "lucide-react";
+import {
+  Pencil,
+  Plus,
+  Search as SearchIcon,
+  ShieldCheck,
+  Trash2,
+  UserRound,
+  Users as UsersIcon,
+  X as XIcon,
+} from "lucide-react";
 import { useToast } from "../../components/Toast";
 import Button from "../../components/Button";
 import Modal from "../../components/Modal";
@@ -50,6 +59,7 @@ export default function AdminUsersPage() {
   const [draft, setDraft] = useState<UserDraft>(EMPTY_DRAFT);
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [query, setQuery] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -146,6 +156,11 @@ export default function AdminUsersPage() {
     }
   };
 
+  const normalized = (s: string) => s.trim().toLowerCase();
+  const filteredUsers = users.filter((u) =>
+    u.username.toLowerCase().includes(normalized(query))
+  );
+
   return (
     <div className="space-y-6">
       <div className="animate-fade-in flex flex-wrap items-center justify-between gap-3">
@@ -187,47 +202,87 @@ export default function AdminUsersPage() {
             </Button>
           </div>
         ) : (
-          <ul className="divide-y divide-slate-100">
-            {users.map((u) => (
-              <li key={u.id} className="flex flex-wrap items-center gap-3 px-5 py-4">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-extrabold text-white">
-                  {u.username.charAt(0).toUpperCase()}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="flex flex-wrap items-center gap-2 font-bold text-slate-900">
-                    {u.username}
-                    {u.id === "Nico" && (
-                      <span className="text-[11px] font-medium text-slate-400">(you)</span>
-                    )}
-                  </p>
-                  <p className="truncate text-xs text-slate-500">
-                    Password: <span className="font-mono text-slate-600">{u.rawPassword || "—"}</span>
-                  </p>
-                </div>
-                <RoleBadge role={u.role} />
-                {u.role !== "super_admin" && (
-                  <div className="flex shrink-0 items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => openEdit(u)}
-                      aria-label={`Edit ${u.username}`}
-                      className="cursor-pointer rounded-lg p-2 text-slate-400 transition-colors duration-200 hover:bg-slate-100 hover:text-blue-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-600 active:scale-[0.92]"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeleting(u)}
-                      aria-label={`Delete ${u.username}`}
-                      className="cursor-pointer rounded-lg p-2 text-slate-400 transition-colors duration-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-rose-500 active:scale-[0.92]"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
+          <>
+            <div className="border-b border-slate-100 px-4 py-3">
+              <div className="relative">
+                <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  id="admin-user-name-search"
+                  type="search"
+                  aria-label="Search users by name"
+                  className="input w-full pl-9 pr-9"
+                  placeholder="Search users by name…"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+                {query && (
+                  <button
+                    type="button"
+                    aria-label="Clear user search"
+                    onClick={() => setQuery("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer rounded-full p-1 text-slate-400 transition-colors duration-150 hover:bg-slate-100 hover:text-slate-600"
+                  >
+                    <XIcon className="h-4 w-4" />
+                  </button>
                 )}
-              </li>
-            ))}
-          </ul>
+              </div>
+            </div>
+            {filteredUsers.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
+                <p className="font-bold text-slate-700">
+                  No users match "{query}"
+                </p>
+                <p className="max-w-sm text-sm text-slate-500">
+                  Try a different name, or clear the search to see every team member.
+                </p>
+                <Button type="button" variant="ghost" onClick={() => setQuery("")}>
+                  Clear search
+                </Button>
+              </div>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {filteredUsers.map((u) => (
+                  <li key={u.id} className="flex flex-wrap items-center gap-3 px-5 py-4">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-extrabold text-white">
+                      {u.username.charAt(0).toUpperCase()}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="flex flex-wrap items-center gap-2 font-bold text-slate-900">
+                        {u.username}
+                        {u.id === "Nico" && (
+                          <span className="text-[11px] font-medium text-slate-400">(you)</span>
+                        )}
+                      </p>
+                      <p className="truncate text-xs text-slate-500">
+                        Password: <span className="font-mono text-slate-600">{u.rawPassword || "—"}</span>
+                      </p>
+                    </div>
+                    <RoleBadge role={u.role} />
+                    {u.role !== "super_admin" && (
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(u)}
+                          aria-label={`Edit ${u.username}`}
+                          className="cursor-pointer rounded-lg p-2 text-slate-400 transition-colors duration-200 hover:bg-slate-100 hover:text-blue-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-600 active:scale-[0.92]"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleting(u)}
+                          aria-label={`Delete ${u.username}`}
+                          className="cursor-pointer rounded-lg p-2 text-slate-400 transition-colors duration-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-rose-500 active:scale-[0.92]"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </section>
 

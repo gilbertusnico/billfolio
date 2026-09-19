@@ -2,13 +2,16 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Building2,
   Search as SearchIcon,
+  Trash2,
   Users as UsersIcon,
   X as XIcon,
 } from "lucide-react";
 import { useToast } from "../../components/Toast";
 import Button from "../../components/Button";
 import Modal from "../../components/Modal";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import {
+  adminSoftDeleteCompany,
   fetchAllCompaniesAdmin,
   fetchAllUsers,
   fetchCompanyMembers,
@@ -36,6 +39,7 @@ export default function AdminCompaniesPage() {
 
   const [companyQuery, setCompanyQuery] = useState("");
   const [userQuery, setUserQuery] = useState("");
+  const [deleting, setDeleting] = useState<Company | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,6 +103,19 @@ export default function AdminCompaniesPage() {
       (m) => m.companyId === company.id && (m.role === "owner" || m.userId === company.ownerId)
     );
     return owner?.username ?? "—";
+  };
+
+  const confirmDelete = async () => {
+    if (!deleting) return;
+    try {
+      await adminSoftDeleteCompany(deleting.id);
+      showToast(`Company “${deleting.companyName || "Untitled company"}” deleted`);
+      setDeleting(null);
+      void load();
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+      setDeleting(null);
+    }
   };
 
   const memberCount = (companyId: string) =>
@@ -199,10 +216,20 @@ export default function AdminCompaniesPage() {
                     {formatDate(c.createdAt)}
                   </p>
                 </div>
-                <Button type="button" variant="secondary" onClick={() => openAccess(c)}>
-                  <UsersIcon className="h-4 w-4" />
-                  Manage Access
-                </Button>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <Button type="button" variant="secondary" onClick={() => openAccess(c)}>
+                    <UsersIcon className="h-4 w-4" />
+                    Manage Access
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleting(c)}
+                    aria-label={`Delete ${c.companyName || "this company"}`}
+                    className="cursor-pointer rounded-lg p-2 text-slate-400 transition-colors duration-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-rose-500 active:scale-[0.92]"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </li>
             ))}
               </ul>
@@ -312,6 +339,25 @@ export default function AdminCompaniesPage() {
           </Button>
         </div>
       </Modal>
+
+      {/* Soft-delete company confirm */}
+      <ConfirmDialog
+        open={deleting !== null}
+        title="Delete this company?"
+        message={
+          deleting ? (
+            <>
+              Delete <span className="font-semibold">{deleting.companyName || "Untitled company"}</span>?
+              The workspace disappears for everyone and its public invoice links stop working. The
+              data is kept in the database (soft delete) and can be restored by a Super Admin — only
+              proceed if you're sure.
+            </>
+          ) : null
+        }
+        confirmLabel="Delete Company"
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setDeleting(null)}
+      />
     </div>
   );
 }

@@ -411,6 +411,18 @@ export async function deleteCompanyRow(companyId: string): Promise<void> {
   if (error) throw unwrap(error, "We couldn't delete that company.");
 }
 
+/**
+ * Soft-delete a company — Super Admin only (enforced inside the RPC). Sets
+ * companies.deleted_at so the workspace vanishes everywhere (sidebar picker,
+ * admin list, public invoice links) while the row stays intact for recovery.
+ */
+export async function adminSoftDeleteCompany(companyId: string): Promise<void> {
+  const { error } = await supabase.rpc("admin_soft_delete_company", {
+    p_company_id: companyId,
+  });
+  if (error) throw unwrap(error, "We couldn't delete that company.");
+}
+
 export interface WorkspacePayload {
   clients: Client[];
   bankAccounts: BankAccount[];
