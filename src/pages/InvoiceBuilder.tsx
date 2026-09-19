@@ -753,7 +753,11 @@ export default function InvoiceBuilder() {
                 <span className="font-semibold text-slate-800">{formatIDR(tax)}</span>
               </div>
             )}
-            <div className="flex items-center justify-between border-t border-slate-200 pt-3">
+            <div
+              className={`flex items-center justify-between pt-3 ${
+                hasTax || hasDiscount ? "border-t border-slate-200" : ""
+              }`}
+            >
               <span className="text-sm font-bold text-slate-900">Grand Total</span>
               <span className="text-xl font-extrabold tracking-tight text-slate-900">
                 {formatIDR(total)}

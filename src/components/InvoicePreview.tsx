@@ -234,7 +234,13 @@ export default function InvoicePreview({
               )}
             </>
           ) : null}
-          <div className="flex justify-between border-t border-slate-200 pt-2">
+          <div
+            className={`flex justify-between pt-2 ${
+              (Number(taxRate) || 0) > 0 || discountAmount > 0
+                ? "border-t border-slate-200"
+                : ""
+            }`}
+          >
             <dt className="font-bold text-slate-900">Grand Total</dt>
             <dd className="text-lg font-extrabold tracking-tight text-slate-900">
               {formatIDR(total)}
