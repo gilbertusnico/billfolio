@@ -18,6 +18,7 @@ interface InvoicePreviewProps {
   client: ClientSnapshot | null;
   items: InvoiceItem[];
   taxRate: number;
+  discount: number;
   bank: BankSnapshot | null;
   notes: string;
   profile: Profile;
@@ -54,6 +55,7 @@ export default function InvoicePreview({
   client,
   items,
   taxRate,
+  discount,
   bank,
   notes,
   profile,
@@ -62,7 +64,8 @@ export default function InvoicePreview({
   const rows = items.filter((i) => i.description.trim() !== "" || Number(i.quantity) > 0);
   const subtotal = rows.reduce((sum, i) => sum + itemAmount(i), 0);
   const tax = (subtotal * (Number(taxRate) || 0)) / 100;
-  const total = subtotal + tax;
+  const discountAmount = Number(discount) || 0;
+  const total = subtotal - discountAmount + tax;
 
   const { headerStyle, headerColor, zebra } = template.table;
   // Keep header labels readable no matter which background the user picks.
@@ -208,22 +211,29 @@ export default function InvoicePreview({
         </table>
       </div>
 
-      {/* Totals — subtotal & tax rows appear only when a tax rate is set; otherwise
-          the document goes straight from line items to the Grand Total. */}
+        {/* Totals — optional subtotal, discount, and tax rows stay out of the document when unused. */}
       <div className="mt-6 flex justify-end">
         <dl className="w-full max-w-[240px] space-y-1.5 text-sm">
-          {(Number(taxRate) || 0) > 0 && (
+          {(Number(taxRate) || 0) > 0 || discountAmount > 0 ? (
             <>
               <div className="flex justify-between">
                 <dt className="text-slate-500">Subtotal</dt>
                 <dd className="font-semibold text-slate-700">{formatIDR(subtotal)}</dd>
               </div>
-              <div className="flex justify-between">
-                <dt className="text-slate-500">Tax ({(Number(taxRate) || 0)}%)</dt>
-                <dd className="font-semibold text-slate-700">{formatIDR(tax)}</dd>
-              </div>
+              {discountAmount > 0 && (
+                <div className="flex justify-between">
+                  <dt className="text-slate-500">Discount</dt>
+                  <dd className="font-semibold text-rose-600">-{formatIDR(discountAmount)}</dd>
+                </div>
+              )}
+              {(Number(taxRate) || 0) > 0 && (
+                <div className="flex justify-between">
+                  <dt className="text-slate-500">Tax ({(Number(taxRate) || 0)}%)</dt>
+                  <dd className="font-semibold text-slate-700">{formatIDR(tax)}</dd>
+                </div>
+              )}
             </>
-          )}
+          ) : null}
           <div className="flex justify-between border-t border-slate-200 pt-2">
             <dt className="font-bold text-slate-900">Grand Total</dt>
             <dd className="text-lg font-extrabold tracking-tight text-slate-900">

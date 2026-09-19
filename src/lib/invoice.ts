@@ -15,6 +15,6 @@ export function taxAmount(invoice: Pick<Invoice, "items" | "taxRate">): number {
   return (invoiceSubtotal(invoice) * rate) / 100;
 }
 
-export function grandTotal(invoice: Pick<Invoice, "items" | "taxRate">): number {
-  return invoiceSubtotal(invoice) + taxAmount(invoice);
+export function grandTotal(invoice: Pick<Invoice, "items" | "taxRate" | "discount">): number {
+  return invoiceSubtotal(invoice) - (Number(invoice.discount) || 0) + taxAmount(invoice);
 }

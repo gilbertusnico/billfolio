@@ -219,6 +219,7 @@ type InvoiceRow = {
   invoice_date: string;
   due_date: string;
   tax_rate: number | string;
+  discount: number | string;
   bank_account_id: string | null;
   bank_snapshot: unknown;
   notes: string | null;
@@ -239,6 +240,7 @@ function mapInvoice(row: InvoiceRow): Invoice {
     dueDate: row.due_date,
     items: Array.isArray(row.items) ? (row.items as Invoice["items"]) : [],
     taxRate: Number(row.tax_rate) || 0,
+    discount: Number(row.discount) || 0,
     bankAccountId: row.bank_account_id,
     bankSnapshot: (row.bank_snapshot as Invoice["bankSnapshot"]) ?? null,
     notes: row.notes ?? "",
@@ -503,6 +505,7 @@ export async function upsertInvoiceRow(companyId: string, invoice: Invoice): Pro
         invoice_date: invoice.invoiceDate,
         due_date: invoice.dueDate,
         tax_rate: invoice.taxRate,
+        discount: invoice.discount,
         bank_account_id: invoice.bankAccountId,
         bank_snapshot: invoice.bankSnapshot,
         notes: invoice.notes,

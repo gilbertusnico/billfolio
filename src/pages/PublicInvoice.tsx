@@ -30,6 +30,7 @@ interface RawInvoice {
   invoice_date: string;
   due_date: string;
   tax_rate: number | string;
+  discount: number | string;
   bank_snapshot: BankSnapshot | null;
   notes: string | null;
   status: InvoiceStatus;
@@ -69,6 +70,7 @@ function toInvoice(raw: RawInvoice): Invoice {
     dueDate: raw.due_date,
     items: Array.isArray(raw.items) ? raw.items : [],
     taxRate: Number(raw.tax_rate) || 0,
+    discount: Number(raw.discount) || 0,
     bankAccountId: null,
     bankSnapshot: snapshotOrNull(raw.bank_snapshot) as BankSnapshot | null,
     notes: raw.notes ?? "",
@@ -213,6 +215,7 @@ export default function PublicInvoice() {
           client={invoice.clientSnapshot}
           items={invoice.items}
           taxRate={invoice.taxRate}
+          discount={invoice.discount}
           bank={invoice.bankSnapshot}
           notes={invoice.notes}
           profile={profile}

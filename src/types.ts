@@ -58,6 +58,7 @@ export interface Invoice {
   dueDate: string; // ISO yyyy-mm-dd
   items: InvoiceItem[];
   taxRate: number; // percent
+  discount: number; // fixed amount in the invoice currency
   bankAccountId: string | null;
   bankSnapshot: BankSnapshot | null;
   notes: string;

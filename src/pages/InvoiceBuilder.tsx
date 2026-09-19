@@ -181,6 +181,7 @@ export default function InvoiceBuilder() {
   const [dueDate, setDueDate] = useState(() => defaultDates().dueDate);
   const [items, setItems] = useState<InvoiceItem[]>([newItem()]);
   const [taxRate, setTaxRate] = useState(0);
+  const [discount, setDiscount] = useState(0);
   const [bankAccountId, setBankAccountId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<InvoiceStatus>("PENDING");
@@ -211,6 +212,7 @@ export default function InvoiceBuilder() {
       setDueDate(inv.dueDate);
       setItems(inv.items.length ? inv.items.map((i) => ({ ...i })) : [newItem()]);
       setTaxRate(inv.taxRate);
+      setDiscount(inv.discount);
       setBankAccountId(inv.bankAccountId);
       setNotes(inv.notes);
       setStatus(inv.status);
@@ -237,8 +239,10 @@ export default function InvoiceBuilder() {
 
   const subtotal = items.reduce((sum, it) => sum + itemAmount(it), 0);
   const hasTax = (Number(taxRate) || 0) > 0;
+  const hasDiscount = (Number(discount) || 0) > 0;
   const tax = (subtotal * (Number(taxRate) || 0)) / 100;
-  const total = subtotal + tax;
+  const discountAmount = Number(discount) || 0;
+  const total = subtotal - discountAmount + tax;
 
   // Share panel values — WhatsApp deep link uses the client's CURRENT phone
   // (not the invoice snapshot) so legacy clients without a phone can be fixed.
@@ -315,6 +319,7 @@ export default function InvoiceBuilder() {
       dueDate,
       items: validItems.map((it) => ({ ...it, description: it.description.trim() })),
       taxRate: Number(taxRate) || 0,
+      discount: Number(discount) || 0,
       bankAccountId,
       bankSnapshot: bank
         ? { name: bank.name, accountNumber: bank.accountNumber, holder: bank.holder }
@@ -700,7 +705,7 @@ export default function InvoiceBuilder() {
             Tax &amp; Totals
           </h2>
           <div className="ml-auto max-w-xs space-y-2.5">
-            {hasTax && (
+            {(hasTax || hasDiscount) && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-slate-500">Subtotal</span>
                 <span className="font-semibold text-slate-800">{formatIDR(subtotal)}</span>
@@ -721,6 +726,26 @@ export default function InvoiceBuilder() {
                 onChange={(e) => setTaxRate(parseNumericInput(e.target.value))}
               />
             </div>
+            <div className="flex items-center justify-between gap-4 text-sm">
+              <label htmlFor="ib-discount" className="text-slate-500">
+                Discount (Rp)
+              </label>
+              <input
+                id="ib-discount"
+                type="number"
+                min="0"
+                step="1000"
+                className="input w-32 text-right"
+                value={discount}
+                onChange={(e) => setDiscount(parseNumericInput(e.target.value))}
+              />
+            </div>
+            {hasDiscount && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">Discount</span>
+                <span className="font-semibold text-rose-600">-{formatIDR(discountAmount)}</span>
+              </div>
+            )}
             {hasTax && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-slate-500">Tax</span>
@@ -1030,6 +1055,7 @@ export default function InvoiceBuilder() {
               client={clientSnap}
               items={items}
               taxRate={taxRate}
+              discount={discount}
               bank={bankSnap}
               notes={notes}
               profile={data.profile}
