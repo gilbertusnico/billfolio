@@ -4,6 +4,8 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Copy,
+  Download,
   FileText,
   Plus,
   Receipt,
@@ -11,18 +13,19 @@ import {
 } from "lucide-react";
 import { useInvoiceData } from "../context/InvoiceDataContext";
 import { useToast } from "../components/Toast";
-import { formatDate, formatIDR, getDisplayStatus } from "../lib/format";
-import { grandTotal } from "../lib/invoice";
+import { formatDate, formatIDR, getDisplayStatus, toISODate } from "../lib/format";
+import { grandTotal, invoiceSubtotal, taxAmount } from "../lib/invoice";
+import { downloadCsv } from "../lib/csv";
 import StatusBadge from "../components/StatusBadge";
 import { Skeleton, SkeletonRows } from "../components/Skeleton";
-import { ButtonLink } from "../components/Button";
+import Button, { ButtonLink } from "../components/Button";
 import ConfirmDialog from "../components/ConfirmDialog";
 import type { Invoice } from "../types";
 
 const PAGE_SIZE = 8;
 
 export default function Invoices() {
-  const { data, isLoading, upsertInvoice } = useInvoiceData();
+  const { data, isLoading, upsertInvoice, updateSettings } = useInvoiceData();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
@@ -49,6 +52,85 @@ export default function Invoices() {
         (inv.clientSnapshot?.name ?? "").toLowerCase().includes(q)
     );
   }, [data.invoices, query]);
+
+  /** Export the current (search-filtered) list as an Excel-readable CSV. */
+  const exportCsv = () => {
+    if (filtered.length === 0) {
+      showToast("Nothing to export — no invoices match the current view", "error");
+      return;
+    }
+    const slug =
+      (data.profile.companyName || "invoices").replace(/[^\w\- ]+/g, "").trim() || "invoices";
+    downloadCsv(
+      `${slug}-invoices-${toISODate(new Date())}.csv`,
+      [
+        "Invoice Number",
+        "Client Name",
+        "Client Company",
+        "Client Email",
+        "Client Phone",
+        "Project",
+        "Invoice Date",
+        "Due Date",
+        "Status",
+        "Subtotal",
+        "Tax Rate (%)",
+        "Tax Amount",
+        "Total",
+      ],
+      filtered.map((inv) => [
+        inv.number,
+        inv.clientSnapshot?.name ?? "",
+        inv.clientSnapshot?.company ?? "",
+        inv.clientSnapshot?.email ?? "",
+        inv.clientSnapshot?.phone ?? "",
+        inv.projectName,
+        inv.invoiceDate,
+        inv.dueDate,
+        getDisplayStatus(inv),
+        invoiceSubtotal(inv),
+        inv.taxRate,
+        taxAmount(inv),
+        grandTotal(inv),
+      ])
+    );
+    showToast(`Exported ${filtered.length} invoice${filtered.length === 1 ? "" : "s"} to CSV`);
+  };
+
+  /**
+   * Create a fresh DRAFT copy with the next sequence number and today's dates,
+   * then open it in the builder so the user can review before sending.
+   */
+  const duplicateInvoice = (inv: Invoice) => {
+    const today = new Date();
+    const due = new Date(today);
+    due.setDate(due.getDate() + 14);
+    const nowIso = today.toISOString();
+    const number = `${data.settings.invoicePrefix}${String(data.settings.lastSequence + 1).padStart(4, "0")}`;
+    const copy: Invoice = {
+      id: crypto.randomUUID(),
+      number,
+      clientId: inv.clientId,
+      clientSnapshot: inv.clientSnapshot,
+      projectName: inv.projectName,
+      invoiceDate: toISODate(today),
+      dueDate: toISODate(due),
+      items: inv.items.map((it) => ({ ...it, id: crypto.randomUUID() })),
+      taxRate: inv.taxRate,
+      bankAccountId: inv.bankAccountId,
+      bankSnapshot: inv.bankSnapshot,
+      notes: inv.notes,
+      status: "DRAFT",
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+    void upsertInvoice(copy).then((ok) => {
+      if (!ok) return;
+      updateSettings({ ...data.settings, lastSequence: data.settings.lastSequence + 1 });
+      showToast(`${number} duplicated — ready to edit`);
+      navigate(`/invoices/${copy.id}`);
+    });
+  };
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -84,11 +166,23 @@ export default function Invoices() {
             className="input py-2.5 pl-10 pr-4"
           />
         </div>
-        <p className="text-sm font-medium text-slate-500" aria-live="polite">
-          {filtered.length === 0
-            ? "No invoices"
-            : `Showing ${from}–${to} of ${filtered.length}`}
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-medium text-slate-500" aria-live="polite">
+            {filtered.length === 0
+              ? "No invoices"
+              : `Showing ${from}–${to} of ${filtered.length}`}
+          </p>
+          <Button
+            variant="secondary"
+            type="button"
+            className="shrink-0 py-2"
+            disabled={data.invoices.length === 0}
+            onClick={exportCsv}
+          >
+            <Download aria-hidden className="h-4 w-4" />
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow duration-300 hover:shadow-lg">
@@ -162,6 +256,18 @@ export default function Invoices() {
                     <td className="px-5 py-3.5">
                       <span className="flex items-center gap-1.5">
                         <StatusBadge status={getDisplayStatus(inv, now)} />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            duplicateInvoice(inv);
+                          }}
+                          aria-label={`Duplicate ${inv.number} as a new draft`}
+                          title="Duplicate as new draft"
+                          className="cursor-pointer rounded-md p-1.5 text-slate-400 transition-colors duration-200 hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-500 active:scale-[0.9]"
+                        >
+                          <Copy aria-hidden className="h-4 w-4" />
+                        </button>
                         {getDisplayStatus(inv, now) !== "PAID" && (
                           <button
                             type="button"
@@ -173,7 +279,7 @@ export default function Invoices() {
                             title="Mark as PAID"
                             className="cursor-pointer rounded-md p-1.5 text-slate-400 transition-colors duration-200 hover:bg-emerald-50 hover:text-emerald-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-emerald-500 active:scale-[0.9]"
                           >
-                            <CheckCircle2 className="h-4 w-4" />
+                            <CheckCircle2 aria-hidden className="h-4 w-4" />
                           </button>
                         )}
                       </span>
