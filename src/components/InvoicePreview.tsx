@@ -89,10 +89,10 @@ export default function InvoicePreview({
             <img
               src={profile.logoUrl}
               alt=""
-              className="h-14 w-14 rounded-xl object-contain ring-1 ring-slate-200"
+              className="h-14 w-14 object-contain"
             />
           ) : (
-            <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-blue-600 text-2xl font-extrabold text-white">
+            <div className="flex h-14 w-14 items-center justify-center bg-blue-600 text-2xl font-extrabold text-white">
               {initial}
             </div>
           )}

@@ -52,7 +52,44 @@ interface ColorFieldProps {
   disabled?: boolean;
 }
 
+function normalizeHexColor(value: string, fallback: string): string {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return fallback;
+
+  const withHash = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+
+  if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(withHash)) {
+    return withHash.toUpperCase();
+  }
+
+  return fallback;
+}
+
+function sanitizeHexDraft(next: string): string {
+  const raw = next.trim();
+  if (!raw) return "";
+  const cleaned = raw.replace(/[^#0-9a-fA-F]/g, "");
+  const withoutHash = cleaned.startsWith("#") ? cleaned.slice(1) : cleaned;
+  const limited = withoutHash.slice(0, 6);
+  return `#${limited}`.toUpperCase();
+}
+
 function ColorField({ label, hint, value, onChange, disabled = false }: ColorFieldProps) {
+  const [textValue, setTextValue] = useState(() => normalizeHexColor(value, "#2563EB"));
+
+  useEffect(() => {
+    setTextValue(normalizeHexColor(value, "#2563EB"));
+  }, [value]);
+
+  const handleTextChange = (next: string) => {
+    const sanitized = sanitizeHexDraft(next);
+    setTextValue(sanitized);
+
+    if (/^#[0-9a-fA-F]{3}$/.test(sanitized) || /^#[0-9a-fA-F]{6}$/.test(sanitized)) {
+      onChange(sanitized);
+    }
+  };
+
   return (
     <div>
       <span className="label">{label}</span>
@@ -63,17 +100,26 @@ function ColorField({ label, hint, value, onChange, disabled = false }: ColorFie
       >
         <input
           type="color"
-          value={value}
+          value={normalizeHexColor(value, "#2563EB")}
           disabled={disabled}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => onChange(normalizeHexColor(e.target.value, value))}
           aria-label={label}
           className={`h-7 w-9 shrink-0 appearance-none rounded border-0 bg-transparent p-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${
             disabled ? "cursor-not-allowed" : "cursor-pointer"
           }`}
         />
-        <span className="text-xs font-semibold tabular-nums text-slate-600">
-          {value.toUpperCase()}
-        </span>
+        <input
+          type="text"
+          value={textValue}
+          disabled={disabled}
+          onChange={(e) => handleTextChange(e.target.value)}
+          onBlur={() => setTextValue(normalizeHexColor(textValue, value))}
+          aria-label={`${label} hex value`}
+          placeholder="#F4731A"
+          inputMode="text"
+          spellCheck={false}
+          className="w-full border-0 bg-transparent px-0 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700 outline-none placeholder:text-slate-300 disabled:cursor-not-allowed"
+        />
       </div>
       {hint && <p className="mt-1 text-[11px] text-slate-400">{hint}</p>}
     </div>
@@ -88,6 +134,21 @@ interface BorderRowProps {
 
 /** Toggle + color + thickness for one decorative border bar. */
 function BorderRow({ label, border, onChange }: BorderRowProps) {
+  const [textValue, setTextValue] = useState(() => normalizeHexColor(border.color, "#2563EB"));
+
+  useEffect(() => {
+    setTextValue(normalizeHexColor(border.color, "#2563EB"));
+  }, [border.color]);
+
+  const handleTextChange = (next: string) => {
+    const sanitized = sanitizeHexDraft(next);
+    setTextValue(sanitized);
+
+    if (/^#[0-9a-fA-F]{3}$/.test(sanitized) || /^#[0-9a-fA-F]{6}$/.test(sanitized)) {
+      onChange({ color: sanitized });
+    }
+  };
+
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
       <div className="flex items-center gap-3">
@@ -112,11 +173,25 @@ function BorderRow({ label, border, onChange }: BorderRowProps) {
         <div className="ml-auto flex items-center gap-2">
           <input
             type="color"
-            value={border.color}
+            value={normalizeHexColor(border.color, "#2563EB")}
             disabled={!border.visible}
-            onChange={(e) => onChange({ color: e.target.value })}
+            onChange={(e) => onChange({ color: normalizeHexColor(e.target.value, border.color) })}
             aria-label={`${label} color`}
             className={`h-7 w-8 shrink-0 cursor-pointer appearance-none rounded border-0 bg-transparent p-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${
+              border.visible ? "" : "cursor-not-allowed opacity-40"
+            }`}
+          />
+          <input
+            type="text"
+            value={textValue}
+            disabled={!border.visible}
+            onChange={(e) => handleTextChange(e.target.value)}
+            onBlur={() => setTextValue(normalizeHexColor(textValue, border.color))}
+            aria-label={`${label} hex color`}
+            placeholder="#F4731A"
+            inputMode="text"
+            spellCheck={false}
+            className={`w-24 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-700 outline-none transition-colors duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 ${
               border.visible ? "" : "cursor-not-allowed opacity-40"
             }`}
           />
