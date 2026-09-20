@@ -262,6 +262,10 @@ export function unwrap(error: { message?: string; code?: string; status?: number
   const raw = error?.message ?? "";
   const cleaned = raw.replace(/^Database error saving|^Database error/i, "").trim();
 
+  if (/users_email_partial_key|duplicate key value violates unique constraint/i.test(cleaned)) {
+    return new Error("Username is already in use. Please choose another username.");
+  }
+
   const status = error?.status;
   if (status === 401 || status === 403 || /row-level security|permission denied/i.test(cleaned)) {
     return new Error(
@@ -542,8 +546,16 @@ export async function fetchAllUsers(): Promise<UserProfile[]> {
   return (data ?? []).map((row) => mapProfile(row as unknown as ProfileRow));
 }
 
-export async function adminCreateUser(username: string, password: string): Promise<void> {
-  const { error } = await supabase.rpc("admin_create_user", { p_username: username, p_password: password });
+export async function adminCreateUser(
+  username: string,
+  password: string,
+  role: "user" | "super_admin" = "user"
+): Promise<void> {
+  const { error } = await supabase.rpc("admin_create_user", {
+    p_username: username,
+    p_password: password,
+    p_role: role,
+  });
   if (error) throw unwrap(error, "We couldn't create that user.");
 }
 

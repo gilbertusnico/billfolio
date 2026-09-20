@@ -131,7 +131,7 @@ export default function AdminUsersPage() {
     setSaving(true);
     setFormError("");
     try {
-      await adminCreateUser(username, draft.password);
+      await adminCreateUser(username, draft.password, draft.role);
       showToast(`User “${username}” created — grant company access from the Companies page`);
       setCreateOpen(false);
       void load();
