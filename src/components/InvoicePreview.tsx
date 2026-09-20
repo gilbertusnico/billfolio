@@ -19,6 +19,7 @@ interface InvoicePreviewProps {
   items: InvoiceItem[];
   taxRate: number;
   discount: number;
+  calculatedTotals?: { subtotal: number; taxAmount: number; grandTotal: number };
   bank: BankSnapshot | null;
   notes: string;
   profile: Profile;
@@ -56,16 +57,18 @@ export default function InvoicePreview({
   items,
   taxRate,
   discount,
+  calculatedTotals,
   bank,
   notes,
   profile,
   template,
 }: InvoicePreviewProps) {
   const rows = items.filter((i) => i.description.trim() !== "" || Number(i.quantity) > 0);
-  const subtotal = rows.reduce((sum, i) => sum + itemAmount(i), 0);
-  const tax = (subtotal * (Number(taxRate) || 0)) / 100;
+  const calculatedSubtotal = rows.reduce((sum, i) => sum + itemAmount(i), 0);
+  const subtotal = calculatedTotals?.subtotal ?? calculatedSubtotal;
+  const tax = calculatedTotals?.taxAmount ?? (subtotal * (Number(taxRate) || 0)) / 100;
   const discountAmount = Number(discount) || 0;
-  const total = subtotal - discountAmount + tax;
+  const total = calculatedTotals?.grandTotal ?? Math.max(0, subtotal - discountAmount + tax);
 
   const { headerStyle, headerColor, zebra } = template.table;
   // Keep header labels readable no matter which background the user picks.

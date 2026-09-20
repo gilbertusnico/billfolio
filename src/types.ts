@@ -59,6 +59,9 @@ export interface Invoice {
   items: InvoiceItem[];
   taxRate: number; // percent
   discount: number; // fixed amount in the invoice currency
+  subtotal?: number;
+  taxAmount?: number;
+  grandTotal?: number;
   bankAccountId: string | null;
   bankSnapshot: BankSnapshot | null;
   notes: string;

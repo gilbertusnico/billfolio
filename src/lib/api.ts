@@ -220,6 +220,9 @@ type InvoiceRow = {
   due_date: string;
   tax_rate: number | string;
   discount: number | string;
+  subtotal: number | string;
+  tax_amount: number | string;
+  grand_total: number | string;
   bank_account_id: string | null;
   bank_snapshot: unknown;
   notes: string | null;
@@ -242,6 +245,9 @@ function mapInvoice(row: InvoiceRow): Invoice {
     items: Array.isArray(row.items) ? (row.items as Invoice["items"]) : [],
     taxRate: Number(row.tax_rate) || 0,
     discount: Number(row.discount) || 0,
+    subtotal: Number(row.subtotal) || 0,
+    taxAmount: Number(row.tax_amount) || 0,
+    grandTotal: Number(row.grand_total) || 0,
     bankAccountId: row.bank_account_id,
     bankSnapshot: (row.bank_snapshot as Invoice["bankSnapshot"]) ?? null,
     notes: row.notes ?? "",

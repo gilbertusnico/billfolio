@@ -243,7 +243,7 @@ export default function InvoiceBuilder() {
   const hasDiscount = (Number(discount) || 0) > 0;
   const tax = (subtotal * (Number(taxRate) || 0)) / 100;
   const discountAmount = Number(discount) || 0;
-  const total = subtotal - discountAmount + tax;
+  const total = Math.max(0, subtotal - discountAmount + tax);
 
   // Share panel values — WhatsApp deep link uses the client's CURRENT phone
   // (not the invoice snapshot) so legacy clients without a phone can be fixed.
@@ -743,12 +743,6 @@ export default function InvoiceBuilder() {
                 onChange={(e) => setDiscount(parseNumericInput(e.target.value))}
               />
             </div>
-            {hasDiscount && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-500">Discount</span>
-                <span className="font-semibold text-rose-600">-{formatIDR(discountAmount)}</span>
-              </div>
-            )}
             {hasTax && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-slate-500">Tax</span>
