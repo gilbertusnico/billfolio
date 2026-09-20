@@ -308,6 +308,7 @@ export default function InvoiceBuilder() {
     const client = data.clients.find((c) => c.id === clientId) ?? null;
     const bank = data.bankAccounts.find((b) => b.id === bankAccountId) ?? null;
     const nowIso = new Date().toISOString();
+    const paidAt = status === "PAID" ? (existing?.paidAt ?? nowIso) : null;
     return {
       id: id ?? crypto.randomUUID(),
       number: displayNumber,
@@ -327,6 +328,7 @@ export default function InvoiceBuilder() {
         : null,
       notes: notes.trim(),
       status,
+      paidAt,
       createdAt: existing?.createdAt ?? nowIso,
       updatedAt: nowIso,
     };

@@ -224,6 +224,7 @@ type InvoiceRow = {
   bank_snapshot: unknown;
   notes: string | null;
   status: "DRAFT" | "PENDING" | "PAID";
+  paid_at: string | null;
   items: unknown;
   created_at: string;
   updated_at: string;
@@ -245,6 +246,7 @@ function mapInvoice(row: InvoiceRow): Invoice {
     bankSnapshot: (row.bank_snapshot as Invoice["bankSnapshot"]) ?? null,
     notes: row.notes ?? "",
     status: row.status ?? "DRAFT",
+    paidAt: row.paid_at ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -510,6 +512,7 @@ export async function upsertInvoiceRow(companyId: string, invoice: Invoice): Pro
         bank_snapshot: invoice.bankSnapshot,
         notes: invoice.notes,
         status: invoice.status,
+        paid_at: invoice.paidAt,
         items: invoice.items,
         updated_at: invoice.updatedAt,
       } as never,

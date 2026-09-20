@@ -55,7 +55,12 @@ export default function Invoices() {
 
   /** Quick admin action: flip a non-paid invoice to PAID straight from the table. */
   const markPaid = (inv: Invoice) => {
-    upsertInvoice({ ...inv, status: "PAID", updatedAt: new Date().toISOString() });
+    upsertInvoice({
+      ...inv,
+      status: "PAID",
+      paidAt: inv.status === "PAID" ? inv.paidAt : new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
     showToast(`${inv.number} marked as PAID`);
     setPendingPaidInvoice(null);
   };
@@ -181,6 +186,7 @@ export default function Invoices() {
       bankSnapshot: inv.bankSnapshot,
       notes: inv.notes,
       status: "DRAFT",
+      paidAt: null,
       createdAt: nowIso,
       updatedAt: nowIso,
     };

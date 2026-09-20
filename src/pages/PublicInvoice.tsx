@@ -34,6 +34,7 @@ interface RawInvoice {
   bank_snapshot: BankSnapshot | null;
   notes: string | null;
   status: InvoiceStatus;
+  paid_at: string | null;
   items: InvoiceItem[];
   created_at: string;
   updated_at: string;
@@ -75,6 +76,7 @@ function toInvoice(raw: RawInvoice): Invoice {
     bankSnapshot: snapshotOrNull(raw.bank_snapshot) as BankSnapshot | null,
     notes: raw.notes ?? "",
     status: raw.status ?? "DRAFT",
+    paidAt: raw.paid_at ?? null,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
   };
@@ -151,7 +153,11 @@ export default function PublicInvoice() {
       showToast("We couldn't update the status — check your connection and try again.", "error");
       return;
     }
-    setPayload((p) => (p ? { ...p, invoice: { ...p.invoice, status: "PAID" } } : p));
+    setPayload((p) =>
+      p
+        ? { ...p, invoice: { ...p.invoice, status: "PAID", paid_at: new Date().toISOString() } }
+        : p
+    );
     showToast("Thank you — this invoice is now marked as PAID.");
   };
 

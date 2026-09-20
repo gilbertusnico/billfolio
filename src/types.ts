@@ -63,6 +63,7 @@ export interface Invoice {
   bankSnapshot: BankSnapshot | null;
   notes: string;
   status: InvoiceStatus;
+  paidAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
