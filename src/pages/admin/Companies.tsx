@@ -20,6 +20,31 @@ import {
 } from "../../lib/api";
 import type { Company, CompanyMember } from "../../types";
 
+const PAGE_SIZE = 10;
+
+function getPageNumbers(currentPage: number, totalPages: number): Array<number | "ellipsis"> {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const pages = new Set<number>([1, totalPages, currentPage, currentPage - 1, currentPage + 1, 2, totalPages - 1]);
+  const normalized = Array.from(pages)
+    .filter((page) => page >= 1 && page <= totalPages)
+    .sort((a, b) => a - b);
+
+  const result: Array<number | "ellipsis"> = [];
+  for (let index = 0; index < normalized.length; index += 1) {
+    const page = normalized[index];
+    const previous = normalized[index - 1];
+    if (previous !== undefined && page - previous > 1) {
+      result.push("ellipsis");
+    }
+    result.push(page);
+  }
+
+  return result;
+}
+
 function formatDate(iso: string): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
@@ -40,6 +65,16 @@ export default function AdminCompaniesPage() {
   const [companyQuery, setCompanyQuery] = useState("");
   const [userQuery, setUserQuery] = useState("");
   const [deleting, setDeleting] = useState<Company | null>(null);
+  const [companyPage, setCompanyPage] = useState(1);
+  const [accessPage, setAccessPage] = useState(1);
+
+  useEffect(() => {
+    setCompanyPage(1);
+  }, [companyQuery]);
+
+  useEffect(() => {
+    setAccessPage(1);
+  }, [userQuery]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -128,6 +163,18 @@ export default function AdminCompaniesPage() {
   const filteredUsers = [...users.entries()].filter(([, username]) =>
     username.toLowerCase().includes(normalized(userQuery))
   );
+  const companyTotalPages = Math.max(1, Math.ceil(filteredCompanies.length / PAGE_SIZE));
+  const safeCompanyPage = Math.min(companyPage, companyTotalPages);
+  const pagedCompanies = filteredCompanies.slice(
+    (safeCompanyPage - 1) * PAGE_SIZE,
+    safeCompanyPage * PAGE_SIZE
+  );
+  const accessTotalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
+  const safeAccessPage = Math.min(accessPage, accessTotalPages);
+  const pagedAccessUsers = filteredUsers.slice(
+    (safeAccessPage - 1) * PAGE_SIZE,
+    safeAccessPage * PAGE_SIZE
+  );
 
   return (
     <div className="space-y-6">
@@ -198,41 +245,96 @@ export default function AdminCompaniesPage() {
                 </Button>
               </div>
             ) : (
-              <ul className="divide-y divide-slate-100">
-                {filteredCompanies.map((c) => (
-              <li key={c.id} className="flex flex-wrap items-center gap-3 px-5 py-4">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-                  {c.logoUrl ? (
-                    <img src={c.logoUrl} alt="" className="h-full w-full object-contain p-0.5" />
-                  ) : (
-                    <Building2 className="h-5 w-5 text-slate-300" />
-                  )}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-bold text-slate-900">{c.companyName || "Untitled company"}</p>
-                  <p className="truncate text-xs text-slate-500">
-                    Owner: <span className="font-medium text-slate-600">{ownerName(c)}</span> ·{" "}
-                    {memberCount(c.id)} member{memberCount(c.id) === 1 ? "" : "s"} · created{" "}
-                    {formatDate(c.createdAt)}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <Button type="button" variant="secondary" onClick={() => openAccess(c)}>
-                    <UsersIcon className="h-4 w-4" />
-                    Manage Access
-                  </Button>
-                  <button
-                    type="button"
-                    onClick={() => setDeleting(c)}
-                    aria-label={`Delete ${c.companyName || "this company"}`}
-                    className="cursor-pointer rounded-lg p-2 text-slate-400 transition-colors duration-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-rose-500 active:scale-[0.92]"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </li>
-            ))}
-              </ul>
+              <>
+                <ul className="divide-y divide-slate-100">
+                  {pagedCompanies.map((c) => (
+                    <li key={c.id} className="flex flex-wrap items-center gap-3 px-5 py-4">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                        {c.logoUrl ? (
+                          <img src={c.logoUrl} alt="" className="h-full w-full object-contain p-0.5" />
+                        ) : (
+                          <Building2 className="h-5 w-5 text-slate-300" />
+                        )}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-bold text-slate-900">{c.companyName || "Untitled company"}</p>
+                        <p className="truncate text-xs text-slate-500">
+                          Owner: <span className="font-medium text-slate-600">{ownerName(c)}</span> ·{" "}
+                          {memberCount(c.id)} member{memberCount(c.id) === 1 ? "" : "s"} · created{" "}
+                          {formatDate(c.createdAt)}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <Button type="button" variant="secondary" onClick={() => openAccess(c)}>
+                          <UsersIcon className="h-4 w-4" />
+                          Manage Access
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleting(c)}
+                          aria-label={`Delete ${c.companyName || "this company"}`}
+                          className="cursor-pointer rounded-lg p-2 text-slate-400 transition-colors duration-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-rose-500 active:scale-[0.92]"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+
+                {companyTotalPages > 1 && (
+                  <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+                    <span>
+                      Page {safeCompanyPage} of {companyTotalPages}
+                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setCompanyPage((p) => Math.max(1, p - 1))}
+                        disabled={safeCompanyPage === 1}
+                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-medium text-slate-600 transition-colors duration-150 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Prev
+                      </button>
+
+                      {getPageNumbers(safeCompanyPage, companyTotalPages).map((page, index) => {
+                        if (page === "ellipsis") {
+                          return (
+                            <span key={`ellipsis-${index}`} className="px-1 text-slate-400">
+                              …
+                            </span>
+                          );
+                        }
+
+                        const isCurrent = page === safeCompanyPage;
+                        return (
+                          <button
+                            key={page}
+                            type="button"
+                            onClick={() => setCompanyPage(page)}
+                            className={`min-w-8 rounded-lg border px-2 py-1.5 text-center font-semibold transition-colors duration-150 ${
+                              isCurrent
+                                ? "border-blue-600 bg-blue-600 text-white"
+                                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        );
+                      })}
+
+                      <button
+                        type="button"
+                        onClick={() => setCompanyPage((p) => Math.min(companyTotalPages, p + 1))}
+                        disabled={safeCompanyPage === companyTotalPages}
+                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-medium text-slate-600 transition-colors duration-150 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
@@ -282,7 +384,7 @@ export default function AdminCompaniesPage() {
               name.
             </p>
           ) : (
-            filteredUsers
+            pagedAccessUsers
               .sort((a, b) => a[1].localeCompare(b[1]))
               .map(([userId, username]) => {
                 const isOwner = accessFor?.ownerId === userId;
@@ -323,6 +425,59 @@ export default function AdminCompaniesPage() {
               })
           )}
         </div>
+
+        {accessTotalPages > 1 && filteredUsers.length > 0 && (
+          <div className="mt-3 flex flex-col gap-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              Page {safeAccessPage} of {accessTotalPages}
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setAccessPage((p) => Math.max(1, p - 1))}
+                disabled={safeAccessPage === 1}
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-medium text-slate-600 transition-colors duration-150 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Prev
+              </button>
+
+              {getPageNumbers(safeAccessPage, accessTotalPages).map((page, index) => {
+                if (page === "ellipsis") {
+                  return (
+                    <span key={`ellipsis-${index}`} className="px-1 text-slate-400">
+                      …
+                    </span>
+                  );
+                }
+
+                const isCurrent = page === safeAccessPage;
+                return (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setAccessPage(page)}
+                    className={`min-w-8 rounded-lg border px-2 py-1.5 text-center font-semibold transition-colors duration-150 ${
+                      isCurrent
+                        ? "border-blue-600 bg-blue-600 text-white"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    {page}
+                  </button>
+                );
+              })}
+
+              <button
+                type="button"
+                onClick={() => setAccessPage((p) => Math.min(accessTotalPages, p + 1))}
+                disabled={safeAccessPage === accessTotalPages}
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-medium text-slate-600 transition-colors duration-150 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
 
         {accessFor && users.size > 0 && (
           <p className="mt-3 text-xs text-slate-400">

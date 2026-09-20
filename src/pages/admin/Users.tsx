@@ -26,6 +26,7 @@ import type { UserProfile, UserRole } from "../../types";
 
 const FIELD_CLASS =
   "w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition-colors duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20";
+const PAGE_SIZE = 10;
 
 const ROLE_STYLES: Record<UserRole, string> = {
   super_admin: "bg-violet-100 text-violet-700",
@@ -48,6 +49,29 @@ interface UserDraft {
 
 const EMPTY_DRAFT: UserDraft = { username: "", password: "", role: "user" };
 
+function getPageNumbers(currentPage: number, totalPages: number): Array<number | "ellipsis"> {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const pages = new Set<number>([1, totalPages, currentPage, currentPage - 1, currentPage + 1, 2, totalPages - 1]);
+  const normalized = Array.from(pages)
+    .filter((page) => page >= 1 && page <= totalPages)
+    .sort((a, b) => a - b);
+
+  const result: Array<number | "ellipsis"> = [];
+  for (let index = 0; index < normalized.length; index += 1) {
+    const page = normalized[index];
+    const previous = normalized[index - 1];
+    if (previous !== undefined && page - previous > 1) {
+      result.push("ellipsis");
+    }
+    result.push(page);
+  }
+
+  return result;
+}
+
 export default function AdminUsersPage() {
   const { showToast } = useToast();
 
@@ -60,6 +84,11 @@ export default function AdminUsersPage() {
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -160,6 +189,9 @@ export default function AdminUsersPage() {
   const filteredUsers = users.filter((u) =>
     u.username.toLowerCase().includes(normalized(query))
   );
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pagedUsers = filteredUsers.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
     <div className="space-y-6">
@@ -240,47 +272,102 @@ export default function AdminUsersPage() {
                 </Button>
               </div>
             ) : (
-              <ul className="divide-y divide-slate-100">
-                {filteredUsers.map((u) => (
-                  <li key={u.id} className="flex flex-wrap items-center gap-3 px-5 py-4">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-extrabold text-white">
-                      {u.username.charAt(0).toUpperCase()}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="flex flex-wrap items-center gap-2 font-bold text-slate-900">
-                        {u.username}
-                        {u.id === "Nico" && (
-                          <span className="text-[11px] font-medium text-slate-400">(you)</span>
-                        )}
-                      </p>
-                      <p className="truncate text-xs text-slate-500">
-                        Password: <span className="font-mono text-slate-600">{u.rawPassword || "—"}</span>
-                      </p>
-                    </div>
-                    <RoleBadge role={u.role} />
-                    {u.role !== "super_admin" && (
-                      <div className="flex shrink-0 items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => openEdit(u)}
-                          aria-label={`Edit ${u.username}`}
-                          className="cursor-pointer rounded-lg p-2 text-slate-400 transition-colors duration-200 hover:bg-slate-100 hover:text-blue-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-600 active:scale-[0.92]"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleting(u)}
-                          aria-label={`Delete ${u.username}`}
-                          className="cursor-pointer rounded-lg p-2 text-slate-400 transition-colors duration-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-rose-500 active:scale-[0.92]"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+              <>
+                <ul className="divide-y divide-slate-100">
+                  {pagedUsers.map((u) => (
+                    <li key={u.id} className="flex flex-wrap items-center gap-3 px-5 py-4">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-extrabold text-white">
+                        {u.username.charAt(0).toUpperCase()}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="flex flex-wrap items-center gap-2 font-bold text-slate-900">
+                          {u.username}
+                          {u.id === "Nico" && (
+                            <span className="text-[11px] font-medium text-slate-400">(you)</span>
+                          )}
+                        </p>
+                        <p className="truncate text-xs text-slate-500">
+                          Password: <span className="font-mono text-slate-600">{u.rawPassword || "—"}</span>
+                        </p>
                       </div>
-                    )}
-                  </li>
-                ))}
-              </ul>
+                      <RoleBadge role={u.role} />
+                      {u.role !== "super_admin" && (
+                        <div className="flex shrink-0 items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openEdit(u)}
+                            aria-label={`Edit ${u.username}`}
+                            className="cursor-pointer rounded-lg p-2 text-slate-400 transition-colors duration-200 hover:bg-slate-100 hover:text-blue-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-600 active:scale-[0.92]"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleting(u)}
+                            aria-label={`Delete ${u.username}`}
+                            className="cursor-pointer rounded-lg p-2 text-slate-400 transition-colors duration-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-rose-500 active:scale-[0.92]"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+
+                {totalPages > 1 && (
+                  <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+                    <span>
+                      Page {safePage} of {totalPages}
+                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        disabled={safePage === 1}
+                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-medium text-slate-600 transition-colors duration-150 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Prev
+                      </button>
+
+                      {getPageNumbers(safePage, totalPages).map((page, index) => {
+                        if (page === "ellipsis") {
+                          return (
+                            <span key={`ellipsis-${index}`} className="px-1 text-slate-400">
+                              …
+                            </span>
+                          );
+                        }
+
+                        const isCurrent = page === safePage;
+                        return (
+                          <button
+                            key={page}
+                            type="button"
+                            onClick={() => setPage(page)}
+                            className={`min-w-8 rounded-lg border px-2 py-1.5 text-center font-semibold transition-colors duration-150 ${
+                              isCurrent
+                                ? "border-blue-600 bg-blue-600 text-white"
+                                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        );
+                      })}
+
+                      <button
+                        type="button"
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={safePage === totalPages}
+                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-medium text-slate-600 transition-colors duration-150 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
