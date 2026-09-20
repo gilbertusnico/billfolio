@@ -118,7 +118,7 @@ function ColorField({ label, hint, value, onChange, disabled = false }: ColorFie
           placeholder="#F4731A"
           inputMode="text"
           spellCheck={false}
-          className="w-full border-0 bg-transparent px-0 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700 outline-none placeholder:text-slate-300 disabled:cursor-not-allowed"
+          className="min-w-0 flex-1 border-0 bg-transparent px-0 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700 outline-none placeholder:text-slate-300 disabled:cursor-not-allowed"
         />
       </div>
       {hint && <p className="mt-1 text-[11px] text-slate-400">{hint}</p>}
@@ -151,33 +151,36 @@ function BorderRow({ label, border, onChange }: BorderRowProps) {
 
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          role="switch"
-          aria-checked={border.visible}
-          aria-label={`Show ${label}`}
-          onClick={() => onChange({ visible: !border.visible })}
-          className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${
-            border.visible ? "bg-blue-600" : "bg-slate-300"
-          }`}
-        >
-          <span
-            aria-hidden
-            className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${
-              border.visible ? "translate-x-5" : ""
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex min-w-0 items-center gap-3 sm:w-[220px]">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={border.visible}
+            aria-label={`Show ${label}`}
+            onClick={() => onChange({ visible: !border.visible })}
+            className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${
+              border.visible ? "bg-blue-600" : "bg-slate-300"
             }`}
-          />
-        </button>
-        <span className="text-sm font-semibold text-slate-700">{label}</span>
-        <div className="ml-auto flex items-center gap-2">
+          >
+            <span
+              aria-hidden
+              className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${
+                border.visible ? "translate-x-5" : ""
+              }`}
+            />
+          </button>
+          <span className="min-w-0 text-sm font-semibold text-slate-700">{label}</span>
+        </div>
+
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:justify-end">
           <input
             type="color"
             value={normalizeHexColor(border.color, "#2563EB")}
             disabled={!border.visible}
             onChange={(e) => onChange({ color: normalizeHexColor(e.target.value, border.color) })}
             aria-label={`${label} color`}
-            className={`h-7 w-8 shrink-0 cursor-pointer appearance-none rounded border-0 bg-transparent p-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${
+            className={`h-7 w-9 shrink-0 cursor-pointer appearance-none rounded-lg border-0 bg-white p-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${
               border.visible ? "" : "cursor-not-allowed opacity-40"
             }`}
           />
@@ -191,7 +194,7 @@ function BorderRow({ label, border, onChange }: BorderRowProps) {
             placeholder="#F4731A"
             inputMode="text"
             spellCheck={false}
-            className={`w-24 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-700 outline-none transition-colors duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 ${
+            className={`min-w-0 flex-1 rounded-lg border-0 bg-white px-2.5 py-2 text-xs font-semibold uppercase tracking-wide text-slate-700 outline-none transition-colors duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 ${
               border.visible ? "" : "cursor-not-allowed opacity-40"
             }`}
           />
@@ -200,7 +203,7 @@ function BorderRow({ label, border, onChange }: BorderRowProps) {
             disabled={!border.visible}
             onChange={(e) => onChange({ thickness: Number(e.target.value) as TemplateBorder["thickness"] })}
             aria-label={`${label} thickness`}
-            className={`rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 transition-colors duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
+            className={`min-w-[120px] rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 transition-colors duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
               border.visible ? "" : "cursor-not-allowed opacity-40"
             }`}
           >
