@@ -11,6 +11,7 @@ import {
   Printer,
   Plus,
   Save,
+  Sparkles,
   Trash2,
   UserPlus,
 } from "lucide-react";
@@ -26,6 +27,7 @@ import ClientModal from "../components/ClientModal";
 import type { ClientInput } from "../components/ClientModal";
 import ConfirmDialog from "../components/ConfirmDialog";
 import InvoicePreview from "../components/InvoicePreview";
+import Modal from "../components/Modal";
 import { Skeleton } from "../components/Skeleton";
 import type {
   BankSnapshot,
@@ -33,6 +35,7 @@ import type {
   Invoice,
   InvoiceItem,
   InvoiceStatus,
+  Client,
   TableStyleCustomization,
   TemplateBorder,
   TemplateCustomization,
@@ -237,6 +240,14 @@ function parseNumericInput(raw: string): number {
   return Number.isFinite(value) ? value : 0;
 }
 
+function normalizeClientLookup(value: string | undefined): string {
+  return (value ?? "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
 function defaultDates() {
   const today = new Date();
   const due = new Date(today);
@@ -255,6 +266,7 @@ export default function InvoiceBuilder() {
   const [ready, setReady] = useState(false);
   const [number, setNumber] = useState("");
   const [clientId, setClientId] = useState<string | null>(null);
+  const [clientDraft, setClientDraft] = useState<Client | null>(null);
   const [projectName, setProjectName] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(() => defaultDates().invoiceDate);
   const [dueDate, setDueDate] = useState(() => defaultDates().dueDate);
@@ -269,6 +281,9 @@ export default function InvoiceBuilder() {
   const [formError, setFormError] = useState<string | null>(null);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [quickPromptOpen, setQuickPromptOpen] = useState(false);
+  const [quickPrompt, setQuickPrompt] = useState("");
+  const [generating, setGenerating] = useState(false);
 
   // Public share-link state — populated by "Generate & Share Link".
   const shareRef = useRef<HTMLDivElement | null>(null);
@@ -484,8 +499,104 @@ export default function InvoiceBuilder() {
     const saved = await upsertClient(client);
     if (!saved) return;
     setClientId(client.id);
+    setClientDraft(null);
     setClientModalOpen(false);
     showToast("Client Added");
+  };
+
+  const handleGenerateInvoice = async () => {
+    const prompt = quickPrompt.trim();
+    if (!prompt) {
+      showToast("Tulis detail invoice terlebih dahulu", "error");
+      return;
+    }
+
+    setGenerating(true);
+    try {
+      const response = await fetch("/api/ai/parse-invoice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      const responseText = await response.text();
+      let result: {
+        error?: string;
+        client_name?: string;
+        project_name?: string;
+        due_days?: number;
+        tax_rate?: number;
+        discount?: number;
+        items?: Array<{ description?: string; quantity?: number; unit_price?: number }>;
+      } = {};
+
+      if (responseText.trim()) {
+        try {
+          result = JSON.parse(responseText) as typeof result;
+        } catch {
+          throw new Error(
+            "Server AI mengembalikan response yang tidak valid. Jalankan aplikasi melalui Vercel atau `vercel dev`, bukan Vite saja."
+          );
+        }
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          result.error ||
+            `AI endpoint tidak tersedia (HTTP ${response.status}). Jalankan aplikasi melalui Vercel atau \`vercel dev\`.`
+        );
+      }
+
+      const parsedItems = (result.items ?? [])
+        .filter((item) => item.description?.trim())
+        .map((item) => ({
+          id: crypto.randomUUID(),
+          description: item.description?.trim() ?? "",
+          quantity: Number.isFinite(item.quantity) && Number(item.quantity) > 0 ? Number(item.quantity) : 1,
+          unitPrice: Number.isFinite(item.unit_price) ? Math.max(0, Number(item.unit_price)) : 0,
+        }));
+
+      if (parsedItems.length === 0) {
+        throw new Error("AI tidak menemukan item invoice. Tambahkan nama item dan harganya.");
+      }
+
+      const clientName = result.client_name?.trim() ?? "";
+      const normalizedClientName = normalizeClientLookup(clientName);
+      const matchedClient = data.clients.find((client) =>
+        [client.name, client.company].some(
+          (value) => normalizeClientLookup(value) === normalizedClientName
+        )
+      );
+      setClientId(matchedClient?.id ?? null);
+      setProjectName(result.project_name?.trim() ?? "");
+      setTaxRate(Math.max(0, Number(result.tax_rate) || 0));
+      setDiscount(Math.max(0, Number(result.discount) || 0));
+      setItems(parsedItems);
+
+      const dueDays = Math.max(0, Number(result.due_days) || 7);
+      const due = new Date(`${invoiceDate}T00:00:00`);
+      due.setDate(due.getDate() + dueDays);
+      setDueDate(toISODate(due));
+      setQuickPromptOpen(false);
+      if (!matchedClient && normalizedClientName) {
+        const nowIso = new Date().toISOString();
+        setClientDraft({
+          id: crypto.randomUUID(),
+          name: result.client_name?.trim() ?? "",
+          createdAt: nowIso,
+          updatedAt: nowIso,
+        });
+        setClientModalOpen(true);
+      }
+      showToast(
+        matchedClient || !clientName
+          ? "Invoice berhasil dibuat dari prompt AI"
+          : `Invoice dibuat, tapi client “${result.client_name}” belum ada di daftar`
+      );
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "AI gagal memproses invoice.", "error");
+    } finally {
+      setGenerating(false);
+    }
   };
 
   if (!ready) {
@@ -508,6 +619,26 @@ export default function InvoiceBuilder() {
         className="min-w-0 space-y-5"
         aria-label="Invoice form"
       >
+        <section className="rounded-2xl border border-blue-100 bg-blue-50/60 p-5 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
+                <Sparkles className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 className="font-bold text-slate-900">Invoice Quick Prompt</h2>
+                <p className="mt-0.5 text-sm text-slate-600">
+                  Tulis detail invoice bebas, lalu biarkan AI mengisi form.
+                </p>
+              </div>
+            </div>
+            <Button type="button" onClick={() => setQuickPromptOpen(true)}>
+              <Sparkles className="h-4 w-4" />
+              Generate Invoice
+            </Button>
+          </div>
+        </section>
+
         {formError && (
           <div
             role="alert"
@@ -600,7 +731,10 @@ export default function InvoiceBuilder() {
                 <Button
                   variant="secondary"
                   type="button"
-                  onClick={() => setClientModalOpen(true)}
+                  onClick={() => {
+                    setClientDraft(null);
+                    setClientModalOpen(true);
+                  }}
                   className="shrink-0 sm:shrink"
                 >
                   <UserPlus className="h-4 w-4" />
@@ -1153,10 +1287,61 @@ export default function InvoiceBuilder() {
         </div>
       </div>
 
+      <Modal
+        open={quickPromptOpen}
+        title="Invoice Quick Prompt"
+        onClose={() => {
+          if (!generating) setQuickPromptOpen(false);
+        }}
+        maxWidth="max-w-xl"
+        dismissible={!generating}
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setQuickPromptOpen(false)}
+              disabled={generating}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleGenerateInvoice()}
+              disabled={generating || !quickPrompt.trim()}
+            >
+              <Sparkles className="h-4 w-4" />
+              {generating ? "Generating…" : "Generate Invoice"}
+            </Button>
+          </>
+        }
+      >
+        <label htmlFor="invoice-quick-prompt" className="label">
+          Describe your invoice
+        </label>
+        <textarea
+          id="invoice-quick-prompt"
+          value={quickPrompt}
+          onChange={(event) => setQuickPrompt(event.target.value)}
+          placeholder="Bikin invoice ke PT Maju Bersama buat Website Redesign 15jt dan Maintenance 3jt, diskon 500rb, jatuh tempo 14 hari"
+          rows={6}
+          maxLength={10_000}
+          disabled={generating}
+          className="input min-h-36 resize-y"
+        />
+        <p className="mt-2 text-xs text-slate-500">
+          AI akan mengisi client yang sudah terdaftar, project, due date, tax, discount, dan line items.
+        </p>
+      </Modal>
+
       <ClientModal
         open={clientModalOpen}
-        client={null}
-        onClose={() => setClientModalOpen(false)}
+        client={clientDraft}
+        mode="create"
+        onClose={() => {
+          setClientModalOpen(false);
+          setClientDraft(null);
+        }}
         onSave={handleClientSave}
       />
       <ConfirmDialog

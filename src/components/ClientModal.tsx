@@ -16,13 +16,14 @@ export interface ClientInput {
 interface ClientModalProps {
   open: boolean;
   client: Client | null;
+  mode?: "create" | "edit";
   onClose: () => void;
   onSave: (input: ClientInput) => void;
 }
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 
-export default function ClientModal({ open, client, onClose, onSave }: ClientModalProps) {
+export default function ClientModal({ open, client, mode, onClose, onSave }: ClientModalProps) {
   const [form, setForm] = useState<ClientInput>({
     name: "",
     company: "",
@@ -78,8 +79,10 @@ export default function ClientModal({ open, client, onClose, onSave }: ClientMod
     });
   };
 
+  const isCreateMode = mode ? mode === "create" : client === null;
+
   return (
-    <Modal open={open} onClose={onClose} title={client ? "Edit Client" : "Add Client"}>
+    <Modal open={open} onClose={onClose} title={isCreateMode ? "Add Client" : "Edit Client"}>
       <form onSubmit={submit} noValidate className="space-y-4">
         <div>
           <label htmlFor="cm-name" className="label">
@@ -157,7 +160,7 @@ export default function ClientModal({ open, client, onClose, onSave }: ClientMod
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit">{client ? "Save Changes" : "Add Client"}</Button>
+          <Button type="submit">{isCreateMode ? "Add Client" : "Save Changes"}</Button>
         </div>
       </form>
     </Modal>
