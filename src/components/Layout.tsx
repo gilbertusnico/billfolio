@@ -19,13 +19,29 @@ function pageTitle(pathname: string): string {
 
 export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    return window.localStorage.getItem("billfolio-sidebar-collapsed") === "true";
+  });
   const { pathname } = useLocation();
   const { activeCompanyId } = useInvoiceData();
   const showNewInvoice = pathname === "/" || pathname === "/invoices";
 
+  const toggleSidebar = () => {
+    setSidebarCollapsed((collapsed) => {
+      const next = !collapsed;
+      window.localStorage.setItem("billfolio-sidebar-collapsed", String(next));
+      return next;
+    });
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
-      <Sidebar open={mobileOpen} onClose={() => setMobileOpen(false)} />
+      <Sidebar
+        open={mobileOpen}
+        collapsed={sidebarCollapsed}
+        onClose={() => setMobileOpen(false)}
+        onToggle={toggleSidebar}
+      />
 
       {/* Scrim behind the mobile drawer */}
       {mobileOpen && (
@@ -36,7 +52,11 @@ export default function Layout() {
         />
       )}
 
-      <div className="flex min-h-screen flex-col lg:pl-72">
+      <div
+        className={`flex min-h-screen flex-col transition-[padding] duration-300 ease-in-out ${
+          sidebarCollapsed ? "lg:pl-20" : "lg:pl-72"
+        }`}
+      >
         <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-slate-50/90 backdrop-blur print:hidden">
           <div className="flex h-16 items-center gap-3 px-4 sm:px-6 lg:px-8">
             <button
@@ -63,7 +83,7 @@ export default function Layout() {
 
         <main
           key={`${pathname}:${activeCompanyId ?? ""}`}
-          className="animate-fade-in mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8"
+          className={`animate-fade-in mx-auto w-full flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8`}
         >
           <Outlet />
         </main>

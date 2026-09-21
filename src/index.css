@@ -70,6 +70,7 @@
     transparent 4px
   );
 }
+
 @keyframes preview-pulse {
   0%, 100% { opacity: 0.35; }
   50% { opacity: 0.75; }
