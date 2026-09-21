@@ -1170,23 +1170,32 @@ export default function InvoiceBuilder() {
             <Save className="h-4 w-4" />
             {saving ? "Saving…" : "Save"}
           </Button>
-          <Button
-            variant="secondary"
-            type="button"
-            onClick={() => window.print()}
-            disabled={saving}
-          >
-            <Printer className="h-4 w-4" />
-            Print / PDF
-          </Button>
-          <Button variant="primary" type="button" onClick={() => void handleSaveAndLink()} disabled={saving}>
-            {saving ? (
-              <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden />
-            ) : (
-              <Link2 className="h-4 w-4" />
-            )}
-            {saving ? "Saving…" : "Generate \u0026 Share Link"}
-          </Button>
+          {status !== "DRAFT" && (
+            <>
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => window.print()}
+                disabled={saving}
+              >
+                <Printer className="h-4 w-4" />
+                Print / PDF
+              </Button>
+              <Button
+                variant="primary"
+                type="button"
+                onClick={() => void handleSaveAndLink()}
+                disabled={saving}
+              >
+                {saving ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden />
+                ) : (
+                  <Link2 className="h-4 w-4" />
+                )}
+                {saving ? "Saving…" : "Generate \u0026 Share Link"}
+              </Button>
+            </>
+          )}
         </div>
 
         {/* Share-link panel — appears right after "Generate & Share Link" */}
