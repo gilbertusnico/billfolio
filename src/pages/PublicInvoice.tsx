@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { CheckCircle2, FileQuestion, LoaderCircle, Printer, TriangleAlert } from "lucide-react";
+import { CheckCircle2, CreditCard, FileQuestion, LoaderCircle, Printer, TriangleAlert } from "lucide-react";
 import { sanitizeStyling, supabase } from "../lib/api";
 import { getDisplayStatus } from "../lib/format";
+import { loadMidtransSnap } from "../lib/midtrans";
 import ConfirmDialog from "../components/ConfirmDialog";
 import InvoicePreview from "../components/InvoicePreview";
 import StatusBadge from "../components/StatusBadge";
@@ -105,6 +106,8 @@ export default function PublicInvoice() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [marking, setMarking] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const [snapToken, setSnapToken] = useState<string | null>(null);
   const [confirmPaidOpen, setConfirmPaidOpen] = useState(false);
 
   useEffect(() => {
@@ -134,6 +137,7 @@ export default function PublicInvoice() {
         return;
       }
       setPayload(payload);
+      setSnapToken(null);
       setLoading(false);
     })();
 
@@ -165,6 +169,49 @@ export default function PublicInvoice() {
         : p
     );
     showToast("Thank you — this invoice is now marked as PAID.");
+  };
+
+  const handlePayNow = async () => {
+    if (!id || !invoice || paying || displayStatus !== "PENDING") return;
+    setPaying(true);
+    try {
+      let token = snapToken;
+      if (!token) {
+        const { data, error: functionError } = await supabase.functions.invoke("create-snap-token", {
+          body: { invoice_id: id },
+        });
+        if (functionError) throw new Error(functionError.message || "Could not create payment session.");
+
+        const result = data as { token?: string; error?: string } | null;
+        if (!result?.token) throw new Error(result?.error || "Could not create payment session.");
+        token = result.token;
+        setSnapToken(token);
+      }
+
+      const snap = await loadMidtransSnap();
+      snap.pay(token, {
+        onSuccess: () => {
+          showToast("Pembayaran Berhasil! Status invoice akan diperbarui otomatis.");
+          window.setTimeout(() => window.location.reload(), 1800);
+        },
+        onPending: () => {
+          showToast("Pembayaran masih pending. Selesaikan pembayaran sesuai instruksi Midtrans.", "info");
+          setPaying(false);
+        },
+        onError: () => {
+          showToast("Pembayaran gagal. Silakan coba lagi.", "error");
+          setPaying(false);
+        },
+        onClose: () => {
+          showToast("Popup pembayaran ditutup sebelum pembayaran selesai.", "info");
+          setPaying(false);
+        },
+      });
+    } catch (error) {
+      console.error("Midtrans payment failed", error);
+      showToast(error instanceof Error ? error.message : "Pembayaran gagal dimulai.", "error");
+      setPaying(false);
+    }
   };
 
   if (loading) {
@@ -256,19 +303,28 @@ export default function PublicInvoice() {
               PAID
             </span>
           ) : isActionable ? (
-            <button
-              type="button"
-              onClick={() => setConfirmPaidOpen(true)}
-              disabled={marking}
-              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-emerald-600/20 transition-all duration-300 ease-out hover:bg-emerald-700 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-60"
-            >
-              {marking ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden />
-              ) : (
-                <CheckCircle2 className="h-4 w-4" />
+            <>
+              {displayStatus === "PENDING" && (
+                <button
+                  type="button"
+                  onClick={() => void handlePayNow()}
+                  disabled={paying}
+                  className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-blue-600/20 transition-all duration-300 ease-out hover:bg-blue-700 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-60"
+                >
+                  {paying ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden /> : <CreditCard className="h-4 w-4" />}
+                  {paying ? "Preparing payment…" : "Bayar Sekarang"}
+                </button>
               )}
-              {marking ? "Updating…" : "Press this button if you've PAID"}
-            </button>
+              <button
+                type="button"
+                onClick={() => setConfirmPaidOpen(true)}
+                disabled={marking}
+                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-emerald-600/20 transition-all duration-300 ease-out hover:bg-emerald-700 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-60"
+              >
+                {marking ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden /> : <CheckCircle2 className="h-4 w-4" />}
+                {marking ? "Updating…" : "Press this button if you've PAID"}
+              </button>
+            </>
           ) : (
             <span className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-100 px-5 py-3 text-sm font-medium text-slate-500">
               <TriangleAlert className="h-4 w-4" aria-hidden />

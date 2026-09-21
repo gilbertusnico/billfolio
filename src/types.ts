@@ -39,7 +39,7 @@ export interface BankSnapshot {
   holder: string;
 }
 
-export type InvoiceStatus = "DRAFT" | "PENDING" | "PAID";
+export type InvoiceStatus = "DRAFT" | "PENDING" | "PAID" | "FAILED";
 
 export interface InvoiceItem {
   id: string;

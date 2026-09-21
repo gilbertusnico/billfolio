@@ -226,7 +226,7 @@ type InvoiceRow = {
   bank_account_id: string | null;
   bank_snapshot: unknown;
   notes: string | null;
-  status: "DRAFT" | "PENDING" | "PAID";
+  status: "DRAFT" | "PENDING" | "PAID" | "FAILED";
   paid_at: string | null;
   items: unknown;
   created_at: string;

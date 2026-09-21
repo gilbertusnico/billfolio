@@ -5,6 +5,7 @@ const STYLES: Record<string, string> = {
   PENDING: "bg-amber-100 text-amber-700",
   OVERDUE: "bg-rose-100 text-rose-700",
   DRAFT: "bg-slate-100 text-slate-600",
+  FAILED: "bg-rose-100 text-rose-700",
 };
 
 export default function StatusBadge({ status }: { status: string }) {
