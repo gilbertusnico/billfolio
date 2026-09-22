@@ -2,8 +2,7 @@
 -- Repair malformed Auth users created by the original admin RPC
 -- ----------------------------------------------------------------------------
 -- This keeps profiles, companies and memberships intact. It only rebuilds the
--- email identity and synchronizes the Auth password from the admin password
--- mirror stored in public.profiles.
+-- email identity and restores required non-null Auth token fields.
 -- ============================================================================
 
 -- Remove identities created by the previous repair attempt so they can be
@@ -15,17 +14,13 @@ where i.user_id = u.id
 
 -- Restore the Auth fields required by password sign-in for every internal user.
 update auth.users u
-set encrypted_password = crypt(p.raw_password, gen_salt('bf')),
-    email_confirmed_at = coalesce(u.email_confirmed_at, now()),
+set email_confirmed_at = coalesce(u.email_confirmed_at, now()),
     confirmation_token = '',
     recovery_token = '',
     email_change_token_new = '',
     email_change = '',
     updated_at = now()
-from public.profiles p
-where p.id = u.id
-  and u.email like '%@internal.app'
-  and p.raw_password is not null;
+where u.email like '%@internal.app';
 
 -- Recreate the email identity expected by Supabase Auth.
 insert into auth.identities (

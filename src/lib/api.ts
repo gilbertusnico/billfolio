@@ -152,7 +152,6 @@ type ProfileRow = {
   id: string;
   username: string;
   role: "user" | "super_admin";
-  raw_password: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -162,7 +161,6 @@ function mapProfile(row: ProfileRow): UserProfile {
     id: row.id,
     username: row.username,
     role: row.role,
-    rawPassword: row.raw_password ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -287,44 +285,9 @@ export async function signInWithUsername(username: string, password: string) {
   return supabase.auth.signInWithPassword({ email, password });
 }
 
-/**
- * Best-effort Super Admin auto-seed. Only signs up (never auto-logs-in anyone).
- * - already registered   → harmless error, admin was created via SQL seed
- * - sign-ups disabled    → harmless error, admin must come from the SQL seed
- * - fresh sign-up        → profile is inserted; the trigger promotes role
- *                          automatically because username === "Nico"
- */
-export async function seedSuperAdmin(): Promise<void> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (user) return; // already signed in — nothing to seed
-
-  const { data, error } = await supabase.auth.signUp({
-    email: emailForUsername("Nico"),
-    password: "Nico123",
-  });
-  if (error) return; // exists already, or sign-ups are disabled — SQL seed covers it
-  if (!data.user) return; // confirmation-required flow — nothing more to do here
-
-  await supabase.from("profiles").insert({
-    id: data.user.id,
-    username: "Nico",
-    role: "super_admin",
-    raw_password: "Nico123",
-  } as never);
-}
-
 export async function changeOwnPassword(newPassword: string): Promise<void> {
   const { error: authError } = await supabase.auth.updateUser({ password: newPassword });
   if (authError) throw unwrap(authError, "We couldn't update your password — try again.");
-  const { data: sessionData } = await supabase.auth.getUser();
-  if (sessionData.user) {
-    await supabase
-      .from("profiles")
-      .update({ raw_password: newPassword } as never)
-      .eq("id", sessionData.user.id);
-  }
 }
 
 export async function signOutUser(): Promise<void> {

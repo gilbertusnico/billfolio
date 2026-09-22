@@ -105,7 +105,7 @@ export default function PublicInvoice() {
   const [payload, setPayload] = useState<PublicPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [marking, setMarking] = useState(false);
+  const [reportingPayment, setReportingPayment] = useState(false);
   const [paying, setPaying] = useState(false);
   const [snapToken, setSnapToken] = useState<string | null>(null);
   const [confirmPaidOpen, setConfirmPaidOpen] = useState(false);
@@ -151,24 +151,19 @@ export default function PublicInvoice() {
   const template = payload ? sanitizeStyling(payload.company.styling).template : null;
   const profile = payload ? toProfile(payload.company) : null;
 
-  const handleMarkPaid = async () => {
-    if (!payload || !id || marking) return;
-    setMarking(true);
-    const { error: rpcError } = await supabase.rpc("mark_invoice_paid", {
+  const handleReportPayment = async () => {
+    if (!payload || !id || reportingPayment) return;
+    setReportingPayment(true);
+    const { error: rpcError } = await supabase.rpc("report_invoice_payment", {
       p_invoice_id: id,
     });
-    setMarking(false);
+    setReportingPayment(false);
     if (rpcError) {
-      console.error("mark_invoice_paid failed", rpcError);
-      showToast("We couldn't update the status — check your connection and try again.", "error");
+      console.error("report_invoice_payment failed", rpcError);
+      showToast("We couldn't record your payment report — check your connection and try again.", "error");
       return;
     }
-    setPayload((p) =>
-      p
-        ? { ...p, invoice: { ...p.invoice, status: "PAID", paid_at: new Date().toISOString() } }
-        : p
-    );
-    showToast("Thank you — this invoice is now marked as PAID.");
+    showToast("Thank you — your payment report was recorded. Payment will be confirmed after verification.");
   };
 
   const handlePayNow = async () => {
@@ -318,11 +313,11 @@ export default function PublicInvoice() {
               <button
                 type="button"
                 onClick={() => setConfirmPaidOpen(true)}
-                disabled={marking}
+                disabled={reportingPayment}
                 className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-emerald-600/20 transition-all duration-300 ease-out hover:bg-emerald-700 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-60"
               >
-                {marking ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden /> : <CheckCircle2 className="h-4 w-4" />}
-                {marking ? "Updating…" : "Press this button if you've PAID"}
+                {reportingPayment ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden /> : <CheckCircle2 className="h-4 w-4" />}
+                {reportingPayment ? "Recording report…" : "Report a bank transfer"}
               </button>
             </>
           ) : (
@@ -340,23 +335,23 @@ export default function PublicInvoice() {
         )}
       </main>
 
-      {/* Double-confirm — the client can't flip the invoice to PAID by accident. */}
+      {/* A public report never changes the verified payment status. */}
       <ConfirmDialog
         open={confirmPaidOpen}
         title="Confirm your payment"
         message={
           <>
-            Please double-check before confirming — once marked as PAID, the sender is
-            notified instantly that the full amount for{" "}
+            Please double-check before confirming. This records your report that you have
+            transferred the full amount for{" "}
             <span className="font-semibold">{invoice.number}</span> has been transferred.
           </>
         }
-        confirmLabel="Yes, I've paid"
+        confirmLabel="Yes, report payment"
         cancelLabel="Not yet"
         confirmVariant="primary"
         onConfirm={() => {
           setConfirmPaidOpen(false);
-          void handleMarkPaid();
+          void handleReportPayment();
         }}
         onCancel={() => setConfirmPaidOpen(false)}
       />

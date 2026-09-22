@@ -55,24 +55,3 @@ $$;
 
 revoke all on function public.get_public_invoice(uuid) from public;
 grant execute on function public.get_public_invoice(uuid) to anon, authenticated;
-
--- Public "I've paid" action records the exact server-side time.
-create or replace function public.mark_invoice_paid(p_invoice_id uuid)
-returns boolean
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  update public.invoices
-     set status = 'PAID',
-         paid_at = coalesce(paid_at, now()),
-         updated_at = now()
-   where id = p_invoice_id
-     and status = 'PENDING';
-  return found;
-end;
-$$;
-
-revoke all on function public.mark_invoice_paid(uuid) from public;
-grant execute on function public.mark_invoice_paid(uuid) to anon, authenticated;

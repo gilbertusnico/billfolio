@@ -57,8 +57,8 @@ begin
     now(), now()
   );
 
-  insert into public.profiles (id, username, role, raw_password)
-  values (v_id, lower(trim(p_username)), p_role, p_password);
+  insert into public.profiles (id, username, role)
+  values (v_id, lower(trim(p_username)), p_role);
 
   return v_id;
 end;

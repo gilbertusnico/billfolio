@@ -19,7 +19,7 @@ import { SiWhatsapp } from "react-icons/si";
 import { useInvoiceData } from "../context/InvoiceDataContext";
 import { useToast } from "../components/Toast";
 import { formatIDR, toISODate } from "../lib/format";
-import { grandTotal, itemAmount } from "../lib/invoice";
+import { buildInvoiceNumber, grandTotal, itemAmount } from "../lib/invoice";
 import { buildWhatsAppMessage, whatsAppShareUrl } from "../lib/phone";
 import Button from "../components/Button";
 import ClientCombobox from "../components/ClientCombobox";
@@ -314,9 +314,11 @@ export default function InvoiceBuilder() {
     setReady(true);
   }, [data.invoices, id, isLoading, navigate]);
 
-  const nextNumber = `${data.settings.invoicePrefix}${String(
+  const nextNumber = buildInvoiceNumber(
+    data.settings.invoicePrefix,
+    data.profile.companyName,
     data.settings.lastSequence + 1
-  ).padStart(4, "0")}`;
+  );
   const displayNumber = isNew ? nextNumber : number || nextNumber;
 
   const clientSnap = useMemo<ClientSnapshot | null>(() => {

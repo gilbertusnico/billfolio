@@ -63,8 +63,8 @@ begin
     'email'
   );
 
-  insert into public.profiles (id, username, role, raw_password)
-  values (v_id, lower(trim(p_username)), 'user', p_password);
+  insert into public.profiles (id, username, role)
+  values (v_id, lower(trim(p_username)), 'user');
 
   return v_id;
 end;

@@ -107,12 +107,11 @@ export interface TemplateCustomization {
 
 export type UserRole = "user" | "super_admin";
 
-/** A BillFolio user (profiles table) — includes the raw password for the admin panel. */
+/** A BillFolio user (profiles table). Passwords are managed only by Supabase Auth. */
 export interface UserProfile {
   id: string;
   username: string;
   role: UserRole;
-  rawPassword?: string | null;
   createdAt: string;
   updatedAt: string;
 }

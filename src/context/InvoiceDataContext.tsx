@@ -30,7 +30,6 @@ import {
   fetchUserProfile,
   fetchWorkspace,
   friendlyError,
-  seedSuperAdmin,
   signOutUser,
   supabase,
   updateCompanyProfile,
@@ -238,8 +237,6 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
             setAuthError(message);
             showToast(message, "error");
           }
-        } else {
-          await seedSuperAdmin().catch(() => undefined);
         }
       } catch (err) {
         const message = friendlyError(err);
@@ -490,8 +487,6 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
 
   const changePassword = useCallback(async (newPassword: string) => {
     await changeOwnPassword(newPassword);
-    const me = profileRef.current;
-    if (me) setProfile({ ...me, rawPassword: newPassword });
   }, []);
 
   /* ------------------------------------------------------------------ */

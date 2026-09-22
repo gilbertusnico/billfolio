@@ -193,8 +193,8 @@ export default function Settings() {
       setPwError("Enter a new password.");
       return;
     }
-    if (newPassword.length < 6) {
-      setPwError("Password must be at least 6 characters.");
+    if (newPassword.length < 12) {
+      setPwError("Password must be at least 12 characters.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -408,7 +408,7 @@ export default function Settings() {
               autoComplete="new-password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="At least 6 characters"
+              placeholder="At least 12 characters"
             />
           </div>
           <div className="sm:col-span-2">
@@ -436,11 +436,6 @@ export default function Settings() {
             >
               {pwSaving ? "Updating…" : "Update Password"}
             </Button>
-            {isSuperAdmin && (
-              <span className="text-xs text-slate-400">
-                Default admin credentials: <span className="font-mono text-slate-500">Nico / Nico123</span>
-              </span>
-            )}
           </div>
         </div>
 

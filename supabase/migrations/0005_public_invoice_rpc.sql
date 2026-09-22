@@ -2,7 +2,7 @@
 -- BillFolio — public invoice link RPCs (route /i/:id) + realtime sync
 -- ----------------------------------------------------------------------------
 -- 1. get_public_invoice(id)  → read ONE invoice + its company (security definer)
--- 2. mark_invoice_paid(id)   → flip PENDING → PAID (called from the public page)
+-- 2. report_invoice_payment(id) → records a transfer report without changing status
 -- 3. add invoices to the realtime publication so the dashboard updates live
 --
 -- WHY security definer: the anon role has NO grants on any public.* table
@@ -10,9 +10,8 @@
 -- client-side "public link" cannot read the tables directly. These two RPCs
 -- are the ONLY way an anonymous visitor can read/update an invoice.
 --
--- NOTE: anyone with the anon key can mark any PENDING invoice as PAID — that is
--- the intended trade-off of a public "I've paid" button. We restrict the update
--- to status = 'PENDING' so paid/draft invoices can never be toggled back.
+-- A public link can report that a transfer was made, but only a verified payment
+-- flow (such as the Midtrans webhook) may set the invoice status to PAID.
 -- ============================================================================
 
 create or replace function public.get_public_invoice(p_invoice_id uuid)
@@ -64,9 +63,10 @@ $$;
 revoke all on function public.get_public_invoice(uuid) from public;
 grant execute on function public.get_public_invoice(uuid) to anon, authenticated;
 
--- "Press this button if you've PAID" → PENDING → PAID. Returns false when the
--- invoice is NOT pending (already paid / draft), so nothing is ever reverted.
-create or replace function public.mark_invoice_paid(p_invoice_id uuid)
+alter table public.invoices add column if not exists payment_reported_at timestamptz null;
+
+-- Public payment reports retain PENDING status until the sender verifies them.
+create or replace function public.report_invoice_payment(p_invoice_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -74,7 +74,7 @@ set search_path = public
 as $$
 begin
   update public.invoices
-     set status = 'PAID',
+     set payment_reported_at = coalesce(payment_reported_at, now()),
          updated_at = now()
    where id = p_invoice_id
      and status = 'PENDING';
@@ -82,8 +82,8 @@ begin
 end;
 $$;
 
-revoke all on function public.mark_invoice_paid(uuid) from public;
-grant execute on function public.mark_invoice_paid(uuid) to anon, authenticated;
+revoke all on function public.report_invoice_payment(uuid) from public;
+grant execute on function public.report_invoice_payment(uuid) to anon, authenticated;
 
 -- Realtime publication: so a client clicking PAID on /i/:id updates the admin
 -- Invoices table instantly (fallback: refetch on window focus).

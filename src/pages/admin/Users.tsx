@@ -124,8 +124,8 @@ export default function AdminUsersPage() {
       setFormError("Username and password are both required.");
       return;
     }
-    if (draft.password.length < 6) {
-      setFormError("Password must be at least 6 characters.");
+    if (draft.password.length < 12) {
+      setFormError("Password must be at least 12 characters.");
       return;
     }
     setSaving(true);
@@ -150,8 +150,8 @@ export default function AdminUsersPage() {
       setFormError("Username can't be empty.");
       return;
     }
-    if (draft.password && draft.password.length < 6) {
-      setFormError("New password must be at least 6 characters.");
+    if (draft.password && draft.password.length < 12) {
+      setFormError("New password must be at least 12 characters.");
       return;
     }
     setSaving(true);
@@ -282,12 +282,6 @@ export default function AdminUsersPage() {
                       <div className="min-w-0 flex-1">
                         <p className="flex flex-wrap items-center gap-2 font-bold text-slate-900">
                           {u.username}
-                          {u.id === "Nico" && (
-                            <span className="text-[11px] font-medium text-slate-400">(you)</span>
-                          )}
-                        </p>
-                        <p className="truncate text-xs text-slate-500">
-                          Password: <span className="font-mono text-slate-600">{u.rawPassword || "—"}</span>
                         </p>
                       </div>
                       <RoleBadge role={u.role} />
@@ -405,7 +399,7 @@ export default function AdminUsersPage() {
               autoComplete="new-password"
               value={draft.password}
               onChange={(e) => setDraft((d) => ({ ...d, password: e.target.value }))}
-              placeholder="At least 6 characters"
+              placeholder="At least 12 characters"
             />
           </div>
           <div>

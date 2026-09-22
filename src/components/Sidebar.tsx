@@ -178,7 +178,7 @@ export default function Sidebar({ open, collapsed, onClose, onToggle }: SidebarP
       </div>
 
       <div
-        className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-in-out ${
+        className={`transition-[max-height,opacity] duration-300 ease-in-out ${
           collapsed ? "lg:max-h-0 lg:opacity-0" : "lg:max-h-60 lg:opacity-100"
         }`}
       >

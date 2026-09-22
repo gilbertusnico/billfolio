@@ -5,13 +5,12 @@
 -- or with the Supabase CLI:  supabase db push
 --
 -- What it creates:
---   * profiles            (one per auth user — username, role, raw_password)
+--   * profiles            (one per auth user — username and role)
 --   * companies           (workspaces, incl. per-company invoice styling JSONB)
 --   * company_members     (multi-tenant access: which users see a company)
 --   * clients / bank_accounts / invoices   (scoped to company_id)
 --   * RLS policies        (owners, members and super admins only)
 --   * security-definer admin RPCs used by the /users and /companies pages
---   * Super Admin account:  username `Nico` · password `Nico123`
 --
 -- ORDERING MATTERS: all tables are created BEFORE the RLS helper functions.
 -- PostgreSQL validates `language sql` function bodies at CREATE time, so a
@@ -35,7 +34,6 @@ create table if not exists public.profiles (
   id          uuid primary key references auth.users(id) on delete cascade,
   username    text not null unique,
   role        text not null default 'user' check (role in ('user', 'super_admin')),
-  raw_password text,          -- plaintext mirror for the internal admin panel
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
@@ -160,11 +158,11 @@ create policy "profiles_select" on public.profiles
   for select using (id = auth.uid() or public.is_super_admin());
 drop policy if exists "profiles_insert" on public.profiles;
 create policy "profiles_insert" on public.profiles
-  for insert with check (auth.uid() = id);
+  for insert with check (auth.uid() = id and role = 'user');
 drop policy if exists "profiles_update" on public.profiles;
 create policy "profiles_update" on public.profiles
-  for update using (id = auth.uid() or public.is_super_admin())
-  with check (id = auth.uid() or public.is_super_admin());
+  for update using (public.is_super_admin())
+  with check (public.is_super_admin());
 drop policy if exists "profiles_delete" on public.profiles;
 create policy "profiles_delete" on public.profiles
   for delete using (public.is_super_admin());
@@ -224,8 +222,8 @@ create policy "invoices_all" on public.invoices for all
   with check (public.is_company_member(company_id));
 
 -- ----------------------------------------------------------------------------
--- Trigger: reserved username "Nico" always boots as super admin; every other
--- self-registered profile is forced to role=user (no self-elevation).
+-- Trigger: maintain profile timestamps. Roles are assigned by the authorised
+-- admin RPC, never inferred from a username.
 -- ----------------------------------------------------------------------------
 
 create or replace function public.handle_profile_role()
@@ -235,9 +233,6 @@ security definer
 set search_path = public, extensions
 as $$
 begin
-  if tg_op = 'INSERT' and lower(new.username) = 'nico' then
-    new.role := 'super_admin';
-  end if;
   new.updated_at := now();
   return new;
 end;
@@ -283,8 +278,8 @@ begin
   )
   returning id into v_id;
 
-  insert into public.profiles (id, username, role, raw_password)
-  values (v_id, lower(trim(p_username)), 'user', p_password);
+  insert into public.profiles (id, username, role)
+  values (v_id, lower(trim(p_username)), 'user');
 
   return v_id;
 end;
@@ -317,7 +312,6 @@ begin
   update public.profiles
      set username     = coalesce(p_username, username),
          role         = coalesce(p_role, role),
-         raw_password = coalesce(p_password, raw_password),
          updated_at   = now()
    where id = p_user_id;
 
@@ -375,44 +369,6 @@ $$;
 
 revoke all on function public.create_company(text, text, text, text) from public, anon;
 grant execute on function public.create_company(text, text, text, text) to authenticated;
-
--- ----------------------------------------------------------------------------
--- Seed: Super Admin  (username: Nico · password: Nico123)
--- ----------------------------------------------------------------------------
-
-do $$
-declare v_id uuid;
-begin
-  -- Find-or-create the auth user by email. auth.users is NOT dropped when
-  -- public tables are, so a stale sign-up (client auto-seed or an earlier
-  -- partial run) may already own "nico@internal.app" and the old
-  -- `if not exists` would skip BOTH inserts, leaving profiles empty.
-  select id into v_id from auth.users where email = 'nico@internal.app';
-
-  if v_id is null then
-    insert into auth.users (
-      instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
-      raw_app_meta_data, raw_user_meta_data, created_at, updated_at
-    )
-    values (
-      '00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated',
-      'nico@internal.app', crypt('Nico123', gen_salt('bf')), now(),
-      jsonb_build_object('provider', 'email', 'providers', jsonb_build_array('email')),
-      '{}'::jsonb, now(), now()
-    )
-    returning id into v_id;
-  else
-    -- Repair legacy account from a client-side sign-up: confirm it, or
-    -- password login fails with "Email not confirmed".
-    update auth.users set email_confirmed_at = coalesce(email_confirmed_at, now()) where id = v_id;
-  end if;
-
-  -- Idempotent profile upsert — a missing profile row is repaired, an
-  -- existing one is left untouched (preserves any role/username changes).
-  insert into public.profiles (id, username, role, raw_password)
-  values (v_id, 'Nico', 'super_admin', 'Nico123')
-  on conflict (id) do nothing;
-end $$;
 
 -- ----------------------------------------------------------------------------
 -- Grants for PostgREST roles (anon / authenticated)

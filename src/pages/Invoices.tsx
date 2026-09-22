@@ -18,7 +18,7 @@ import { SiWhatsapp } from "react-icons/si";
 import { useInvoiceData } from "../context/InvoiceDataContext";
 import { useToast } from "../components/Toast";
 import { formatDate, formatIDR, getDisplayStatus, toISODate } from "../lib/format";
-import { grandTotal, invoiceSubtotal, taxAmount } from "../lib/invoice";
+import { buildInvoiceNumber, grandTotal, invoiceSubtotal, taxAmount } from "../lib/invoice";
 import { buildWhatsAppMessage, whatsAppShareUrl } from "../lib/phone";
 import { downloadCsv } from "../lib/csv";
 import StatusBadge from "../components/StatusBadge";
@@ -171,7 +171,11 @@ export default function Invoices() {
     const due = new Date(today);
     due.setDate(due.getDate() + 14);
     const nowIso = today.toISOString();
-    const number = `${data.settings.invoicePrefix}${String(data.settings.lastSequence + 1).padStart(4, "0")}`;
+    const number = buildInvoiceNumber(
+      data.settings.invoicePrefix,
+      data.profile.companyName,
+      data.settings.lastSequence + 1
+    );
     const copy: Invoice = {
       id: crypto.randomUUID(),
       number,
