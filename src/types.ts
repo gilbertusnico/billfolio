@@ -67,6 +67,7 @@ export interface Invoice {
   notes: string;
   status: InvoiceStatus;
   paidAt: string | null;
+  paymentReportedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

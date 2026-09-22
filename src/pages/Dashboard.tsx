@@ -11,13 +11,13 @@ import {
 } from "lucide-react";
 import { useInvoiceData } from "../context/InvoiceDataContext";
 import type { InvoiceStatus } from "../types";
-import { formatDate, formatIDR, getDisplayStatus } from "../lib/format";
+import { formatDate, formatIDR, getDisplayStatus, isPaymentReported } from "../lib/format";
 import { grandTotal } from "../lib/invoice";
 import StatusBadge from "../components/StatusBadge";
 import { Skeleton, SkeletonCards, SkeletonRows } from "../components/Skeleton";
 import { ButtonLink } from "../components/Button";
 
-type DashboardStatusFilter = "ALL" | InvoiceStatus | "OVERDUE";
+type DashboardStatusFilter = "ALL" | InvoiceStatus | "OVERDUE" | "PAYMENT REPORTED";
 
 export default function Dashboard() {
   const { data, isLoading } = useInvoiceData();
@@ -45,7 +45,11 @@ export default function Dashboard() {
   const filtered = invoices.filter((inv) => {
     if (dateFrom && inv.invoiceDate < dateFrom) return false;
     if (dateTo && inv.invoiceDate > dateTo) return false;
-    if (statusFilter !== "ALL" && getDisplayStatus(inv, now) !== statusFilter) return false;
+    const resolved = getDisplayStatus(inv, now);
+    if (statusFilter === "PAYMENT REPORTED") {
+      return isPaymentReported(inv) && inv.status === "PENDING";
+    }
+    if (statusFilter !== "ALL" && resolved !== statusFilter) return false;
     return true;
   });
 
@@ -185,6 +189,7 @@ export default function Dashboard() {
               <option value="DRAFT">Draft</option>
               <option value="PENDING">Pending</option>
               <option value="OVERDUE">Overdue</option>
+              <option value="PAYMENT REPORTED">Payment reported</option>
               <option value="PAID">Paid</option>
             </select>
           </div>
@@ -278,7 +283,11 @@ export default function Dashboard() {
                       {formatIDR(grandTotal(inv))}
                     </td>
                     <td className="px-5 py-3.5">
-                      <StatusBadge status={getDisplayStatus(inv, now)} />
+                      <span className="flex items-center gap-2">
+                        <StatusBadge
+                          status={isPaymentReported(inv) ? "PAYMENT REPORTED" : getDisplayStatus(inv, now)}
+                        />
+                      </span>
                     </td>
                   </tr>
                 ))}

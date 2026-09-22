@@ -31,6 +31,10 @@ export function getDisplayStatus(
   return invoice.status;
 }
 
+export function isPaymentReported(invoice: Invoice): boolean {
+  return invoice.status === "PENDING" && Boolean(invoice.paymentReportedAt);
+}
+
 export function formatDate(iso: string): string {
   if (!iso) return "—";
   const d = new Date(`${iso}T00:00:00`);

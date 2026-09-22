@@ -226,6 +226,7 @@ type InvoiceRow = {
   notes: string | null;
   status: "DRAFT" | "PENDING" | "PAID" | "FAILED";
   paid_at: string | null;
+  payment_reported_at: string | null;
   items: unknown;
   created_at: string;
   updated_at: string;
@@ -251,6 +252,7 @@ function mapInvoice(row: InvoiceRow): Invoice {
     notes: row.notes ?? "",
     status: row.status ?? "DRAFT",
     paidAt: row.paid_at ?? null,
+    paymentReportedAt: row.payment_reported_at ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -486,6 +488,7 @@ export async function upsertInvoiceRow(companyId: string, invoice: Invoice): Pro
         notes: invoice.notes,
         status: invoice.status,
         paid_at: invoice.paidAt,
+        payment_reported_at: invoice.paymentReportedAt,
         items: invoice.items,
         updated_at: invoice.updatedAt,
       } as never,
@@ -497,6 +500,14 @@ export async function upsertInvoiceRow(companyId: string, invoice: Invoice): Pro
 export async function deleteInvoiceRow(invoiceId: string): Promise<void> {
   const { error } = await supabase.from("invoices").delete().eq("id", invoiceId);
   if (error) throw unwrap(error, "We couldn't delete the invoice.");
+}
+
+export async function verifyReportedPayment(invoiceId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("verify_reported_payment", {
+    p_invoice_id: invoiceId,
+  });
+  if (error) throw unwrap(error, "We couldn't verify that payment report.");
+  return Boolean(data);
 }
 
 /* ---------------------------------------------------------------------------

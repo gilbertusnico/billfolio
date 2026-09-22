@@ -10,10 +10,27 @@ function invoiceSegment(value: string, fallback: string): string {
   return normalized || fallback;
 }
 
-/** Creates a company-identifiable number, e.g. INV/NICOcompany/0005. */
+function buildCompanyCode(companyName: string): string {
+  const raw = invoiceSegment(companyName, "COMPANY");
+  if (!raw) return "COMP";
+
+  const letters = raw.replace(/[^A-Za-z]/g, "");
+  if (!letters) return raw.slice(0, 4).toUpperCase() || "COMP";
+
+  const cleaned = letters.replace(/[^A-Z]/gi, "").toUpperCase();
+  if (!cleaned) return "COMP";
+
+  // Human-friendly rule: use the first 3-4 letters of the company name,
+  // but keep it readable. We drop spaces and symbols and prefer a short,
+  // pronounceable acronym over a stripped consonant-only result.
+  const compact = cleaned.slice(0, 4);
+  return compact || "COMP";
+}
+
+/** Creates a company-identifiable number, e.g. INV/KORD/0005 or INV/NICL/0005. */
 export function buildInvoiceNumber(prefix: string, companyName: string, sequence: number): string {
   const safePrefix = invoiceSegment(prefix, "INV");
-  const safeCompany = invoiceSegment(companyName, "COMPANY");
+  const safeCompany = buildCompanyCode(companyName);
   const safeSequence = Math.max(0, Math.floor(Number(sequence) || 0));
   return `${safePrefix}/${safeCompany}/${String(safeSequence).padStart(4, "0")}`;
 }

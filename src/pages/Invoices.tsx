@@ -17,8 +17,9 @@ import {
 import { SiWhatsapp } from "react-icons/si";
 import { useInvoiceData } from "../context/InvoiceDataContext";
 import { useToast } from "../components/Toast";
-import { formatDate, formatIDR, getDisplayStatus, toISODate } from "../lib/format";
+import { formatDate, formatIDR, getDisplayStatus, isPaymentReported, toISODate } from "../lib/format";
 import { buildInvoiceNumber, grandTotal, invoiceSubtotal, taxAmount } from "../lib/invoice";
+import { verifyReportedPayment } from "../lib/api";
 import { buildWhatsAppMessage, whatsAppShareUrl } from "../lib/phone";
 import { downloadCsv } from "../lib/csv";
 import StatusBadge from "../components/StatusBadge";
@@ -39,9 +40,10 @@ export default function Invoices() {
   const [query, setQuery] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [statusTab, setStatusTab] = useState<InvoiceStatus | "ALL">("ALL");
+  const [statusTab, setStatusTab] = useState<InvoiceStatus | "ALL" | "PAYMENT REPORTED">("ALL");
   const [page, setPage] = useState(1);
   const [pendingPaidInvoice, setPendingPaidInvoice] = useState<Invoice | null>(null);
+  const [pendingReportedPaymentInvoice, setPendingReportedPaymentInvoice] = useState<Invoice | null>(null);
   const [sort, setSort] = useState<SortState>(null);
 
   /** Toggle column sort — first click on a new column starts ascending. */
@@ -65,6 +67,30 @@ export default function Invoices() {
     setPendingPaidInvoice(null);
   };
 
+  const verifyReportedPaymentAction = async (inv: Invoice) => {
+    try {
+      const ok = await verifyReportedPayment(inv.id);
+      if (!ok) {
+        showToast(`No payment report was found for ${inv.number}.`, "error");
+        return;
+      }
+
+      upsertInvoice({
+        ...inv,
+        status: "PAID",
+        paidAt: inv.paidAt ?? new Date().toISOString(),
+        paymentReportedAt: inv.paymentReportedAt ?? new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      showToast(`${inv.number} verified and marked as PAID`);
+    } catch (err) {
+      console.error("verifyReportedPaymentAction failed", err);
+      showToast(err instanceof Error ? err.message : "We couldn't approve that payment report.", "error");
+    } finally {
+      setPendingReportedPaymentInvoice(null);
+    }
+  };
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const now = new Date();
@@ -75,6 +101,9 @@ export default function Invoices() {
         !(inv.clientSnapshot?.name ?? "").toLowerCase().includes(q)
       ) {
         return false;
+      }
+      if (statusTab === "PAYMENT REPORTED") {
+        return isPaymentReported(inv) && inv.status === "PENDING";
       }
       if (statusTab !== "ALL" && getDisplayStatus(inv, now) !== statusTab) return false;
       if (dateFrom && inv.invoiceDate < dateFrom) return false;
@@ -114,6 +143,9 @@ export default function Invoices() {
       counts.ALL += 1;
       const s = getDisplayStatus(inv, now);
       counts[s] = (counts[s] ?? 0) + 1;
+      if (isPaymentReported(inv) && inv.status === "PENDING") {
+        counts["PAYMENT REPORTED"] = (counts["PAYMENT REPORTED"] ?? 0) + 1;
+      }
     }
     return counts;
   }, [data.invoices, dateFrom, dateTo]);
@@ -312,7 +344,7 @@ export default function Invoices() {
         aria-label="Filter invoices by status"
         className="flex flex-wrap items-center gap-1.5"
       >
-        {(["ALL", "PENDING", "PAID", "OVERDUE"] as const).map((tab) => {
+        {(["ALL", "PENDING", "PAID", "OVERDUE", "PAYMENT REPORTED"] as const).map((tab) => {
           const active = statusTab === tab;
           return (
             <button
@@ -429,9 +461,10 @@ export default function Invoices() {
               </thead>
               <tbody>
                 {pageItems.map((inv) => {
-                  const display = getDisplayStatus(inv, now);
+                  const display = isPaymentReported(inv) ? "PAYMENT REPORTED" : getDisplayStatus(inv, now);
+                  const reportedAwaitingVerification = isPaymentReported(inv);
                   // Share link exists once the invoice is PENDING — never for DRAFT.
-                  const shareable = display === "PENDING" || display === "OVERDUE";
+                  const shareable = inv.status === "PENDING" || inv.status === "OVERDUE";
                   const phone =
                     data.clients.find((c) => c.id === inv.clientId)?.phone?.trim() ||
                     inv.clientSnapshot?.phone?.trim() ||
@@ -519,6 +552,23 @@ export default function Invoices() {
                                   <SiWhatsapp aria-hidden className="h-4 w-4" />
                                 </span>
                               )}
+                            </>
+                          )}
+                          {reportedAwaitingVerification ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPendingReportedPaymentInvoice(inv);
+                              }}
+                              aria-label={`Verify reported payment for ${inv.number}`}
+                              title="Verify reported payment"
+                              className="cursor-pointer rounded-md p-1.5 text-violet-600 transition-colors duration-200 hover:bg-violet-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-violet-500 active:scale-[0.9]"
+                            >
+                              <CheckCircle2 aria-hidden className="h-4 w-4" />
+                            </button>
+                          ) : (
+                            shareable && (
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -531,7 +581,7 @@ export default function Invoices() {
                               >
                                 <CheckCircle2 aria-hidden className="h-4 w-4" />
                               </button>
-                            </>
+                            )
                           )}
                         </span>
                       </td>
@@ -586,6 +636,23 @@ export default function Invoices() {
           if (pendingPaidInvoice) markPaid(pendingPaidInvoice);
         }}
         onCancel={() => setPendingPaidInvoice(null)}
+      />
+
+      <ConfirmDialog
+        open={pendingReportedPaymentInvoice !== null}
+        title="Verify a reported bank transfer"
+        message={
+          <>
+            Confirm that <strong>{pendingReportedPaymentInvoice?.number}</strong> has been received
+            and mark it as PAID. This closes the manual transfer report and updates invoice status.
+          </>
+        }
+        confirmLabel="Yes, verify payment"
+        confirmVariant="primary"
+        onConfirm={() => {
+          if (pendingReportedPaymentInvoice) void verifyReportedPaymentAction(pendingReportedPaymentInvoice);
+        }}
+        onCancel={() => setPendingReportedPaymentInvoice(null)}
       />
     </div>
   );
