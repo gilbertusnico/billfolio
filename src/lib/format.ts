@@ -1,5 +1,7 @@
 import type { Invoice, InvoiceStatus } from "../types";
 
+export type InvoiceViewState = InvoiceStatus | "OVERDUE" | "PAYMENT_REPORTED";
+
 const idrFormatter = new Intl.NumberFormat("id-ID", {
   style: "currency",
   currency: "IDR",
@@ -20,19 +22,49 @@ export function toISODate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-/** A PENDING invoice whose due date has passed displays as OVERDUE. */
-export function getDisplayStatus(
-  invoice: Invoice,
+export function getInvoiceState(
+  invoice: Pick<Invoice, "status" | "dueDate" | "paymentReportedAt">,
   today: Date = new Date()
-): InvoiceStatus | "OVERDUE" {
+): InvoiceViewState {
+  if (invoice.status === "PAID") return "PAID";
+  if (invoice.status === "FAILED") return "FAILED";
+  if (invoice.status === "DRAFT") return "DRAFT";
+  if (invoice.status === "PENDING" && invoice.paymentReportedAt) return "PAYMENT_REPORTED";
   if (invoice.status === "PENDING" && invoice.dueDate && invoice.dueDate < toISODate(today)) {
     return "OVERDUE";
   }
   return invoice.status;
 }
 
+export function getInvoiceBadgeLabel(state: InvoiceViewState | string): string {
+  switch (state) {
+    case "PAID":
+      return "Paid";
+    case "PENDING":
+      return "Pending";
+    case "OVERDUE":
+      return "Overdue";
+    case "PAYMENT_REPORTED":
+      return "Payment Reported";
+    case "DRAFT":
+      return "Draft";
+    case "FAILED":
+      return "Failed";
+    default:
+      return "Pending";
+  }
+}
+
+/** Backward-compatible alias used by older pages. */
+export function getDisplayStatus(
+  invoice: Invoice,
+  today: Date = new Date()
+): InvoiceViewState {
+  return getInvoiceState(invoice, today);
+}
+
 export function isPaymentReported(invoice: Invoice): boolean {
-  return invoice.status === "PENDING" && Boolean(invoice.paymentReportedAt);
+  return getInvoiceState(invoice) === "PAYMENT_REPORTED";
 }
 
 export function formatDate(iso: string): string {

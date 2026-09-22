@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useInvoiceData } from "../context/InvoiceDataContext";
 import type { InvoiceStatus } from "../types";
-import { formatDate, formatIDR, getDisplayStatus, isPaymentReported } from "../lib/format";
+import { formatDate, formatIDR, getDisplayStatus, getInvoiceState, isPaymentReported } from "../lib/format";
 import { grandTotal } from "../lib/invoice";
 import StatusBadge from "../components/StatusBadge";
 import { Skeleton, SkeletonCards, SkeletonRows } from "../components/Skeleton";
@@ -45,9 +45,9 @@ export default function Dashboard() {
   const filtered = invoices.filter((inv) => {
     if (dateFrom && inv.invoiceDate < dateFrom) return false;
     if (dateTo && inv.invoiceDate > dateTo) return false;
-    const resolved = getDisplayStatus(inv, now);
+    const resolved = getInvoiceState(inv, now);
     if (statusFilter === "PAYMENT REPORTED") {
-      return isPaymentReported(inv) && inv.status === "PENDING";
+      return resolved === "PAYMENT_REPORTED";
     }
     if (statusFilter !== "ALL" && resolved !== statusFilter) return false;
     return true;
@@ -59,6 +59,7 @@ export default function Dashboard() {
   const pendingInvoices = filtered.filter((i) => getDisplayStatus(i, now) === "PENDING");
   const pendingTotal = pendingInvoices.reduce((sum, i) => sum + grandTotal(i), 0);
   const overdueInvoices = filtered.filter((i) => getDisplayStatus(i, now) === "OVERDUE");
+  const paymentReportedInvoices = filtered.filter((i) => getInvoiceState(i, now) === "PAYMENT_REPORTED");
 
   // Newest first by creation date; when filters are active show every match, otherwise the 5 most recent.
   const sorted = [...filtered].sort(
@@ -80,6 +81,7 @@ export default function Dashboard() {
       icon: Receipt,
       accent: "via-blue-600/70",
       chip: "bg-blue-50 text-blue-600",
+      action: null,
     },
     {
       label: "Pending Invoices",
@@ -88,6 +90,7 @@ export default function Dashboard() {
       icon: FileText,
       accent: "via-amber-500/70",
       chip: "bg-amber-50 text-amber-600",
+      action: null,
     },
     {
       label: "Overdue",
@@ -96,13 +99,26 @@ export default function Dashboard() {
       icon: CircleAlert,
       accent: "via-rose-500/70",
       chip: "bg-rose-50 text-rose-600",
+      action: null,
+    },
+    {
+      label: "Payment Reported",
+      value: String(paymentReportedInvoices.length),
+      hint:
+        paymentReportedInvoices.length > 0
+          ? `${paymentReportedInvoices.length} invoice${paymentReportedInvoices.length === 1 ? "" : "s"} awaiting verification`
+          : "No manual payment reports waiting",
+      icon: CircleAlert,
+      accent: "via-violet-500/70",
+      chip: "bg-violet-50 text-violet-600",
+      action: { to: "/invoices?status=PAYMENT_REPORTED", label: "Review now" },
     },
   ];
 
   return (
     <div className="space-y-6">
-      <section aria-label="Summary" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {cards.map(({ label, value, hint, icon: Icon, accent, chip }) => (
+      <section aria-label="Summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {cards.map(({ label, value, hint, icon: Icon, accent, chip, action }) => (
           <article
             key={label}
             className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-lg"
@@ -115,10 +131,19 @@ export default function Dashboard() {
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                   {label}
                 </p>
-                <p className="mt-2 truncate text-2xl font-extrabold tracking-tight text-slate-900">
+                <p className="mt-2 truncate text-xl font-extrabold tracking-tight text-slate-900">
                   {value}
                 </p>
                 <p className="mt-1 text-xs font-medium text-slate-400">{hint}</p>
+                {action && (
+                  <Link
+                    to={action.to}
+                    className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-violet-600 transition-colors duration-200 hover:text-violet-700"
+                  >
+                    {action.label}
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                )}
               </div>
               <div
                 className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110 ${chip}`}
@@ -189,7 +214,7 @@ export default function Dashboard() {
               <option value="DRAFT">Draft</option>
               <option value="PENDING">Pending</option>
               <option value="OVERDUE">Overdue</option>
-              <option value="PAYMENT REPORTED">Payment reported</option>
+              <option value="PAYMENT_REPORTED">Payment reported</option>
               <option value="PAID">Paid</option>
             </select>
           </div>

@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowDown,
   ArrowUp,
@@ -17,7 +17,7 @@ import {
 import { SiWhatsapp } from "react-icons/si";
 import { useInvoiceData } from "../context/InvoiceDataContext";
 import { useToast } from "../components/Toast";
-import { formatDate, formatIDR, getDisplayStatus, isPaymentReported, toISODate } from "../lib/format";
+import { formatDate, formatIDR, getDisplayStatus, getInvoiceState, isPaymentReported, toISODate } from "../lib/format";
 import { buildInvoiceNumber, grandTotal, invoiceSubtotal, taxAmount } from "../lib/invoice";
 import { verifyReportedPayment } from "../lib/api";
 import { buildWhatsAppMessage, whatsAppShareUrl } from "../lib/phone";
@@ -37,14 +37,29 @@ export default function Invoices() {
   const { data, isLoading, upsertInvoice, updateSettings } = useInvoiceData();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [statusTab, setStatusTab] = useState<InvoiceStatus | "ALL" | "PAYMENT REPORTED">("ALL");
+  const [statusTab, setStatusTab] = useState<InvoiceStatus | "ALL" | "PAYMENT REPORTED">(() => {
+    const status = searchParams.get("status");
+    return status === "PAYMENT_REPORTED" || status === "PENDING" || status === "PAID" || status === "OVERDUE" || status === "ALL"
+      ? (status as InvoiceStatus | "ALL" | "PAYMENT REPORTED")
+      : "ALL";
+  });
   const [page, setPage] = useState(1);
   const [pendingPaidInvoice, setPendingPaidInvoice] = useState<Invoice | null>(null);
   const [pendingReportedPaymentInvoice, setPendingReportedPaymentInvoice] = useState<Invoice | null>(null);
   const [sort, setSort] = useState<SortState>(null);
+
+  useEffect(() => {
+    const status = searchParams.get("status");
+    const nextStatus =
+      status === "PAYMENT_REPORTED" || status === "PENDING" || status === "PAID" || status === "OVERDUE" || status === "ALL"
+        ? (status as InvoiceStatus | "ALL" | "PAYMENT REPORTED")
+        : "ALL";
+    setStatusTab(nextStatus);
+  }, [searchParams]);
 
   /** Toggle column sort — first click on a new column starts ascending. */
   const toggleSort = (key: SortKey) => {
@@ -102,8 +117,8 @@ export default function Invoices() {
       ) {
         return false;
       }
-      if (statusTab === "PAYMENT REPORTED") {
-        return isPaymentReported(inv) && inv.status === "PENDING";
+      if (statusTab === "PAYMENT_REPORTED") {
+        return getInvoiceState(inv, now) === "PAYMENT_REPORTED";
       }
       if (statusTab !== "ALL" && getDisplayStatus(inv, now) !== statusTab) return false;
       if (dateFrom && inv.invoiceDate < dateFrom) return false;
@@ -143,9 +158,6 @@ export default function Invoices() {
       counts.ALL += 1;
       const s = getDisplayStatus(inv, now);
       counts[s] = (counts[s] ?? 0) + 1;
-      if (isPaymentReported(inv) && inv.status === "PENDING") {
-        counts["PAYMENT REPORTED"] = (counts["PAYMENT REPORTED"] ?? 0) + 1;
-      }
     }
     return counts;
   }, [data.invoices, dateFrom, dateTo]);
@@ -344,8 +356,9 @@ export default function Invoices() {
         aria-label="Filter invoices by status"
         className="flex flex-wrap items-center gap-1.5"
       >
-        {(["ALL", "PENDING", "PAID", "OVERDUE", "PAYMENT REPORTED"] as const).map((tab) => {
+        {(["ALL", "PENDING", "PAID", "OVERDUE", "PAYMENT_REPORTED"] as const).map((tab) => {
           const active = statusTab === tab;
+          const label = tab === "PAYMENT_REPORTED" ? "PAYMENT REPORTED" : tab === "ALL" ? "All" : tab;
           return (
             <button
               key={tab}
@@ -353,7 +366,17 @@ export default function Invoices() {
               type="button"
               aria-selected={active}
               onClick={() => {
-                setStatusTab(tab);
+                const nextStatus = tab === "ALL" ? "ALL" : tab;
+                setStatusTab(nextStatus);
+                setSearchParams((prev) => {
+                  const next = new URLSearchParams(prev);
+                  if (nextStatus === "ALL") {
+                    next.delete("status");
+                  } else {
+                    next.set("status", nextStatus);
+                  }
+                  return next;
+                });
                 setPage(1);
               }}
               className={`cursor-pointer rounded-full border px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 active:scale-[0.97] ${
@@ -362,7 +385,7 @@ export default function Invoices() {
                   : "border-slate-200 bg-white text-slate-500 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
               }`}
             >
-              {tab === "ALL" ? "All" : tab}{" "}
+              {label}{" "}
               <span className={active ? "text-blue-100" : "text-slate-400"}>
                 {statusCounts[tab] ?? 0}
               </span>
@@ -461,8 +484,9 @@ export default function Invoices() {
               </thead>
               <tbody>
                 {pageItems.map((inv) => {
-                  const display = isPaymentReported(inv) ? "PAYMENT REPORTED" : getDisplayStatus(inv, now);
-                  const reportedAwaitingVerification = isPaymentReported(inv);
+                  const state = getInvoiceState(inv, now);
+                  const display = state;
+                  const reportedAwaitingVerification = state === "PAYMENT_REPORTED";
                   // Share link exists once the invoice is PENDING — never for DRAFT.
                   const shareable = inv.status === "PENDING" || inv.status === "OVERDUE";
                   const phone =

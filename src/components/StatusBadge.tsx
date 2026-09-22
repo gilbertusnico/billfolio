@@ -1,4 +1,4 @@
-import type { InvoiceStatus } from "../types";
+import { getInvoiceBadgeLabel, type InvoiceViewState } from "../lib/format";
 
 const STYLES: Record<string, string> = {
   PAID: "bg-emerald-100 text-emerald-700",
@@ -6,18 +6,18 @@ const STYLES: Record<string, string> = {
   OVERDUE: "bg-rose-100 text-rose-700",
   DRAFT: "bg-slate-100 text-slate-600",
   FAILED: "bg-rose-100 text-rose-700",
-  "PAYMENT REPORTED": "bg-violet-100 text-violet-700",
+  PAYMENT_REPORTED: "bg-violet-100 text-violet-700",
 };
 
 export default function StatusBadge({ status }: { status: string }) {
-  const normalized = status === "PAYMENT REPORTED" ? "Payment Reported" : status;
+  const normalized = (status as InvoiceViewState | string) || "PENDING";
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${STYLES[status] ?? STYLES.DRAFT}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${STYLES[normalized] ?? STYLES.DRAFT}`}
     >
-      {normalized}
+      {getInvoiceBadgeLabel(normalized)}
     </span>
   );
 }
 
-export type { InvoiceStatus };
+export type { InvoiceStatus } from "../types";
