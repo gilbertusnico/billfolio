@@ -138,7 +138,7 @@ export default function Dashboard() {
                 {action && (
                   <Link
                     to={action.to}
-                    className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-violet-600 transition-colors duration-200 hover:text-violet-700"
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-bold text-violet-700 transition-colors duration-200 hover:bg-violet-200 hover:text-violet-800"
                   >
                     {action.label}
                     <ArrowRight className="h-3.5 w-3.5" />

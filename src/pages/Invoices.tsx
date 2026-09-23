@@ -358,7 +358,8 @@ export default function Invoices() {
       >
         {(["ALL", "PENDING", "PAID", "OVERDUE", "PAYMENT_REPORTED"] as const).map((tab) => {
           const active = statusTab === tab;
-          const label = tab === "PAYMENT_REPORTED" ? "PAYMENT REPORTED" : tab === "ALL" ? "All" : tab;
+          const label =
+            tab === "PAYMENT_REPORTED" ? "Payment reported" : tab === "ALL" ? "All" : tab;
           return (
             <button
               key={tab}
