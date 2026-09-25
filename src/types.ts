@@ -68,6 +68,7 @@ export interface Invoice {
   status: InvoiceStatus;
   paidAt: string | null;
   paymentReportedAt: string | null;
+  shareLinkGeneratedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -99,6 +100,7 @@ export interface TableStyleCustomization {
 export interface TemplateCustomization {
   invoiceTitleColor: string; // "INVOICE" heading text color (default: primary accent)
   companyNameColor: string; // company name text color
+  showThankYouMessage: boolean; // toggles the footer closing line on or off
   thankYouMessage: string; // footer closing line rendered under the invoice
   topBorder: TemplateBorder;
   bottomBorder: TemplateBorder;

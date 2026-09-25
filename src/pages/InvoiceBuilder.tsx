@@ -284,12 +284,29 @@ export default function InvoiceBuilder() {
   const [quickPromptOpen, setQuickPromptOpen] = useState(false);
   const [quickPrompt, setQuickPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
-  const isPaidInvoice = status === "PAID";
+
+  const existingInvoice = id ? data.invoices.find((invoice) => invoice.id === id) : undefined;
+  const isPaidInvoiceLocked =
+    status === "PAID" && Boolean(existingInvoice && (existingInvoice.status === "PAID" || !!existingInvoice.paidAt));
 
   // Public share-link state — populated by "Generate & Share Link".
   const shareRef = useRef<HTMLDivElement | null>(null);
   const [shareInfo, setShareInfo] = useState<{ invoice: Invoice; link: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const shareReady = Boolean(shareInfo || existingInvoice?.shareLinkGeneratedAt);
+
+  useEffect(() => {
+    if (!id || !ready) return;
+    const invoice = data.invoices.find((item) => item.id === id);
+    if (!invoice?.shareLinkGeneratedAt) {
+      setShareInfo(null);
+      return;
+    }
+    setShareInfo({
+      invoice,
+      link: `${window.location.origin}/i/${invoice.id}`,
+    });
+  }, [id, data.invoices, ready]);
 
   // Hydrate form state once the data is ready (edit mode prefills).
   useEffect(() => {
@@ -438,7 +455,10 @@ export default function InvoiceBuilder() {
    * points to an invoice that was never saved.
    */
   const persist = async (): Promise<Invoice | null> => {
-    const invoice = buildInvoice();
+    const invoice = {
+      ...buildInvoice(),
+      shareLinkGeneratedAt: existingInvoice?.shareLinkGeneratedAt ?? null,
+    } as Invoice | null;
     if (!invoice) return null;
     const saved = await upsertInvoice(invoice);
     if (!saved) return null;
@@ -453,6 +473,9 @@ export default function InvoiceBuilder() {
     try {
       const invoice = await persist();
       if (!invoice) return;
+      if (shareInfo && shareInfo.invoice.id === invoice.id) {
+        setShareInfo({ invoice, link: shareInfo.link });
+      }
       showToast("Invoice Saved");
       navigate("/invoices");
     } finally {
@@ -466,10 +489,18 @@ export default function InvoiceBuilder() {
     try {
       const invoice = await persist();
       if (!invoice) return;
-      const link = `${window.location.origin}/i/${invoice.id}`;
-      setShareInfo({ invoice, link });
+
+      const nextInvoice = {
+        ...invoice,
+        shareLinkGeneratedAt: invoice.shareLinkGeneratedAt ?? new Date().toISOString(),
+      };
+
+      const ok = await upsertInvoice(nextInvoice);
+      if (!ok) return;
+
+      const link = `${window.location.origin}/i/${nextInvoice.id}`;
+      setShareInfo({ invoice: nextInvoice, link });
       showToast("Invoice saved — share link ready");
-      // Bring the share panel into view (the action bar sits at the bottom).
       window.setTimeout(
         () => shareRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }),
         60
@@ -619,11 +650,11 @@ export default function InvoiceBuilder() {
       {/* ---------------- Form column ---------------- */}
       <form
         onSubmit={(e) => e.preventDefault()}
-        className="min-w-0 space-y-5"
+        className="min-w-0 space-y-5 pb-5"
         aria-label="Invoice form"
       >
-        <fieldset disabled={isPaidInvoice} className="contents">
-          <section className="rounded-2xl border border-blue-100 bg-blue-50/60 p-5 shadow-sm">
+        <fieldset disabled={isPaidInvoiceLocked} className="contents">
+          <section className="rounded-2xl border border-blue-100 bg-blue-50/60 p-5 shadow-sm mb-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-start gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
@@ -653,15 +684,15 @@ export default function InvoiceBuilder() {
           </div>
         )}
 
-        {isPaidInvoice && (
+        {isPaidInvoiceLocked && (
           <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-            Invoice ini sudah dibayar dan form telah terkunci agar tidak ada perubahan lagi.
+            Payment verified — invoice ini sudah dibayar dan form telah terkunci untuk mencegah perubahan lebih lanjut.
           </div>
         )}
 
         {/* Details */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm mb-5">
           <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-400">
             Invoice Details
           </h2>
@@ -783,7 +814,7 @@ export default function InvoiceBuilder() {
         </section>
 
         {/* Line items */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm mb-5">
           <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-400">
             Line Items
           </h2>
@@ -926,7 +957,7 @@ export default function InvoiceBuilder() {
         </section>
 
         {/* Financials */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm mb-5">
           <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-400">
             Tax &amp; Totals
           </h2>
@@ -986,7 +1017,7 @@ export default function InvoiceBuilder() {
         </section>
 
         {/* Payment + notes */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm mb-5">
           <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-400">
             Payment &amp; Notes
           </h2>
@@ -1038,7 +1069,7 @@ export default function InvoiceBuilder() {
         </section>
 
         {/* Template customization — collapsible so the core form stays compact */}
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm mb-5">
           <button
             type="button"
             onClick={() => setTemplateOpen((o) => !o)}
@@ -1094,20 +1125,35 @@ export default function InvoiceBuilder() {
                     />
                   </div>
 
-                  <div className="mt-4">
-                    <label htmlFor="ib-thankyou-message" className="label">
-                      Closing line
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                    <label className="flex cursor-pointer items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(data.template.showThankYouMessage)}
+                        onChange={(e) => patchTemplate({ showThankYouMessage: e.target.checked })}
+                        aria-label="Show closing line"
+                        className="h-4 w-4 shrink-0 cursor-pointer rounded accent-blue-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                      />
+                      <span className="text-sm font-semibold text-slate-700">Show closing line</span>
                     </label>
-                    <textarea
-                      id="ib-thankyou-message"
-                      className="input min-h-[88px] resize-y"
-                      value={data.template.thankYouMessage}
-                      onChange={(e) => patchTemplate({ thankYouMessage: e.target.value })}
-                      placeholder="Terima kasih atas kerja sama Anda."
-                    />
-                    <p className="mt-2 text-[11px] text-slate-400">
-                      This text is saved per company in Template Customization, so each workspace can use a different closing line.
-                    </p>
+
+                    {data.template.showThankYouMessage && (
+                      <div className="mt-3">
+                        <label htmlFor="ib-thankyou-message" className="label">
+                          Closing line
+                        </label>
+                        <textarea
+                          id="ib-thankyou-message"
+                          className="input min-h-[88px] resize-y"
+                          value={data.template.thankYouMessage}
+                          onChange={(e) => patchTemplate({ thankYouMessage: e.target.value })}
+                          placeholder="Terima kasih atas kerja sama Anda."
+                        />
+                        <p className="mt-2 text-[11px] text-slate-400">
+                          This text is saved per company in Template Customization, so each workspace can use a different closing line.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1258,7 +1304,7 @@ export default function InvoiceBuilder() {
         )}
 
         <div className="sticky bottom-0 z-20 flex flex-col-reverse gap-3 rounded-xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur sm:flex-row sm:justify-end">
-          {!isPaidInvoice && (
+          {!isPaidInvoiceLocked && (
             <Button variant="secondary" type="button" onClick={() => void handleSave()} disabled={saving}>
               <Save className="h-4 w-4" />
               {saving ? "Saving…" : "Save"}
@@ -1275,19 +1321,26 @@ export default function InvoiceBuilder() {
                 <Printer className="h-4 w-4" />
                 Print / PDF
               </Button>
-              <Button
-                variant="primary"
-                type="button"
-                onClick={() => void handleSaveAndLink()}
-                disabled={saving}
+              <div
+                className={`transition-all duration-300 ease-out ${
+                  shareReady ? "pointer-events-none max-w-0 overflow-hidden opacity-0" : "max-w-[320px] opacity-100"
+                }`}
               >
-                {saving ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden />
-                ) : (
-                  <Link2 className="h-4 w-4" />
-                )}
-                {saving ? "Saving…" : "Generate & Share Link"}
-              </Button>
+                <Button
+                  variant="primary"
+                  type="button"
+                  onClick={() => void handleSaveAndLink()}
+                  disabled={saving}
+                  className="whitespace-nowrap"
+                >
+                  {saving ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden />
+                  ) : (
+                    <Link2 className="h-4 w-4" />
+                  )}
+                  {saving ? "Saving…" : "Generate & Share Link"}
+                </Button>
+              </div>
             </>
           )}
         </div>

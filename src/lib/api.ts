@@ -60,6 +60,7 @@ export const DEFAULT_SETTINGS: Settings = {
 export const DEFAULT_TEMPLATE: TemplateCustomization = {
   invoiceTitleColor: ACCENT_COLOR,
   companyNameColor: "#0f172a",
+  showThankYouMessage: true,
   thankYouMessage: "Terima kasih atas kerja sama Anda.",
   topBorder: { visible: false, color: ACCENT_COLOR, thickness: 4 },
   bottomBorder: { visible: false, color: ACCENT_COLOR, thickness: 4 },
@@ -93,6 +94,10 @@ export function sanitizeTemplate(raw: unknown): TemplateCustomization {
       typeof r.invoiceTitleColor === "string" ? r.invoiceTitleColor : base.invoiceTitleColor,
     companyNameColor:
       typeof r.companyNameColor === "string" ? r.companyNameColor : base.companyNameColor,
+    showThankYouMessage:
+      typeof r.showThankYouMessage === "boolean"
+        ? r.showThankYouMessage
+        : base.showThankYouMessage,
     thankYouMessage:
       typeof r.thankYouMessage === "string" && r.thankYouMessage.trim()
         ? r.thankYouMessage.trim()
@@ -232,6 +237,7 @@ type InvoiceRow = {
   status: "DRAFT" | "PENDING" | "PAID" | "FAILED";
   paid_at: string | null;
   payment_reported_at: string | null;
+  share_link_generated_at: string | null;
   items: unknown;
   created_at: string;
   updated_at: string;
@@ -258,6 +264,7 @@ function mapInvoice(row: InvoiceRow): Invoice {
     status: row.status ?? "DRAFT",
     paidAt: row.paid_at ?? null,
     paymentReportedAt: row.payment_reported_at ?? null,
+    shareLinkGeneratedAt: row.share_link_generated_at ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -494,6 +501,7 @@ export async function upsertInvoiceRow(companyId: string, invoice: Invoice): Pro
         status: invoice.status,
         paid_at: invoice.paidAt,
         payment_reported_at: invoice.paymentReportedAt,
+        share_link_generated_at: invoice.shareLinkGeneratedAt,
         items: invoice.items,
         updated_at: invoice.updatedAt,
       } as never,

@@ -20,6 +20,7 @@ export const ACCENT_COLOR = "#2563eb";
 export const DEFAULT_TEMPLATE: TemplateCustomization = {
   invoiceTitleColor: ACCENT_COLOR,
   companyNameColor: "#0f172a",
+  showThankYouMessage: true,
   thankYouMessage: "Terima kasih atas kerja sama Anda.",
   topBorder: { visible: false, color: ACCENT_COLOR, thickness: 4 },
   bottomBorder: { visible: false, color: ACCENT_COLOR, thickness: 4 },
@@ -129,6 +130,10 @@ function sanitizeTemplate(raw: unknown): TemplateCustomization {
       typeof r.invoiceTitleColor === "string" ? r.invoiceTitleColor : base.invoiceTitleColor,
     companyNameColor:
       typeof r.companyNameColor === "string" ? r.companyNameColor : base.companyNameColor,
+    showThankYouMessage:
+      typeof r.showThankYouMessage === "boolean"
+        ? r.showThankYouMessage
+        : base.showThankYouMessage,
     thankYouMessage:
       typeof r.thankYouMessage === "string" && r.thankYouMessage.trim()
         ? r.thankYouMessage.trim()
