@@ -248,24 +248,35 @@ export default function AdminCompaniesPage() {
               <>
                 <ul className="divide-y divide-slate-100">
                   {pagedCompanies.map((c) => (
-                    <li key={c.id} className="flex flex-wrap items-center gap-3 px-5 py-4">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-                        {c.logoUrl ? (
-                          <img src={c.logoUrl} alt="" className="h-full w-full object-contain p-0.5" />
-                        ) : (
-                          <Building2 className="h-5 w-5 text-slate-300" />
-                        )}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-bold text-slate-900">{c.companyName || "Untitled company"}</p>
-                        <p className="truncate text-xs text-slate-500">
-                          Owner: <span className="font-medium text-slate-600">{ownerName(c)}</span> ·{" "}
-                          {memberCount(c.id)} member{memberCount(c.id) === 1 ? "" : "s"} · created{" "}
-                          {formatDate(c.createdAt)}
-                        </p>
+                    <li
+                      key={c.id}
+                      className="flex flex-col gap-3 px-5 py-4 md:flex-row md:flex-wrap md:items-center md:gap-3"
+                    >
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                          {c.logoUrl ? (
+                            <img src={c.logoUrl} alt="" className="h-full w-full object-contain p-0.5" />
+                          ) : (
+                            <Building2 className="h-5 w-5 text-slate-300" />
+                          )}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="break-words font-bold text-slate-900">{c.companyName || "Untitled company"}</p>
+                          <p className="break-words text-xs text-slate-500">
+                            Owner: <span className="font-medium text-slate-600">{ownerName(c)}</span> ·{" "}
+                            {memberCount(c.id)} member{memberCount(c.id) === 1 ? "" : "s"} · created{" "}
+                            {formatDate(c.createdAt)}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex shrink-0 items-center gap-1.5">
-                        <Button type="button" variant="secondary" onClick={() => openAccess(c)}>
+
+                      <div className="flex w-full items-center justify-end gap-1.5 md:w-auto md:justify-start">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => openAccess(c)}
+                          className="w-full justify-center md:w-auto"
+                        >
                           <UsersIcon className="h-4 w-4" />
                           Manage Access
                         </Button>

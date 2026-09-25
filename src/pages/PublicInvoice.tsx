@@ -299,17 +299,6 @@ export default function PublicInvoice() {
             </span>
           ) : isActionable ? (
             <>
-              {displayStatus === "PENDING" && (
-                <button
-                  type="button"
-                  onClick={() => void handlePayNow()}
-                  disabled={paying}
-                  className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-blue-600/20 transition-all duration-300 ease-out hover:bg-blue-700 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-60"
-                >
-                  {paying ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden /> : <CreditCard className="h-4 w-4" />}
-                  {paying ? "Preparing payment…" : "Bayar Sekarang"}
-                </button>
-              )}
               <button
                 type="button"
                 onClick={() => setConfirmPaidOpen(true)}
