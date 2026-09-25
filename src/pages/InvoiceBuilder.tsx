@@ -623,7 +623,7 @@ export default function InvoiceBuilder() {
         aria-label="Invoice form"
       >
         <fieldset disabled={isPaidInvoice} className="contents">
-        <section className="rounded-2xl border border-blue-100 bg-blue-50/60 p-5 shadow-sm">
+          <section className="rounded-2xl border border-blue-100 bg-blue-50/60 p-5 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-start gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
@@ -1191,41 +1191,7 @@ export default function InvoiceBuilder() {
           </div>
         </section>
 
-        {/* Pinned actions */}
-        <div className="sticky bottom-0 z-20 flex flex-col-reverse gap-3 rounded-xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur sm:flex-row sm:justify-end">
-          {!isPaidInvoice && (
-            <Button variant="secondary" type="button" onClick={() => void handleSave()} disabled={saving}>
-              <Save className="h-4 w-4" />
-              {saving ? "Saving…" : "Save"}
-            </Button>
-          )}
-          {status !== "DRAFT" && (
-            <>
-              <Button
-                variant="secondary"
-                type="button"
-                onClick={() => window.print()}
-                disabled={saving}
-              >
-                <Printer className="h-4 w-4" />
-                Print / PDF
-              </Button>
-              <Button
-                variant="primary"
-                type="button"
-                onClick={() => void handleSaveAndLink()}
-                disabled={saving}
-              >
-                {saving ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden />
-                ) : (
-                  <Link2 className="h-4 w-4" />
-                )}
-                {saving ? "Saving…" : "Generate \u0026 Share Link"}
-              </Button>
-            </>
-          )}
-        </div>
+        </fieldset>
 
         {/* Share-link panel — appears right after "Generate & Share Link" */}
         {shareInfo && (
@@ -1290,7 +1256,41 @@ export default function InvoiceBuilder() {
             )}
           </div>
         )}
-        </fieldset>
+
+        <div className="sticky bottom-0 z-20 flex flex-col-reverse gap-3 rounded-xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur sm:flex-row sm:justify-end">
+          {!isPaidInvoice && (
+            <Button variant="secondary" type="button" onClick={() => void handleSave()} disabled={saving}>
+              <Save className="h-4 w-4" />
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          )}
+          {status !== "DRAFT" && (
+            <>
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => window.print()}
+                disabled={saving}
+              >
+                <Printer className="h-4 w-4" />
+                Print / PDF
+              </Button>
+              <Button
+                variant="primary"
+                type="button"
+                onClick={() => void handleSaveAndLink()}
+                disabled={saving}
+              >
+                {saving ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden />
+                ) : (
+                  <Link2 className="h-4 w-4" />
+                )}
+                {saving ? "Saving…" : "Generate & Share Link"}
+              </Button>
+            </>
+          )}
+        </div>
       </form>
 
       {/* ---------------- Live preview column ---------------- */}
