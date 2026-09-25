@@ -284,6 +284,7 @@ export default function InvoiceBuilder() {
   const [quickPromptOpen, setQuickPromptOpen] = useState(false);
   const [quickPrompt, setQuickPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
+  const isPaidInvoice = status === "PAID";
 
   // Public share-link state — populated by "Generate & Share Link".
   const shareRef = useRef<HTMLDivElement | null>(null);
@@ -621,6 +622,7 @@ export default function InvoiceBuilder() {
         className="min-w-0 space-y-5"
         aria-label="Invoice form"
       >
+        <fieldset disabled={isPaidInvoice} className="contents">
         <section className="rounded-2xl border border-blue-100 bg-blue-50/60 p-5 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-start gap-3">
@@ -648,6 +650,13 @@ export default function InvoiceBuilder() {
           >
             <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
             {formError}
+          </div>
+        )}
+
+        {isPaidInvoice && (
+          <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+            Invoice ini sudah dibayar dan form telah terkunci agar tidak ada perubahan lagi.
           </div>
         )}
 
@@ -1184,10 +1193,12 @@ export default function InvoiceBuilder() {
 
         {/* Pinned actions */}
         <div className="sticky bottom-0 z-20 flex flex-col-reverse gap-3 rounded-xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur sm:flex-row sm:justify-end">
-          <Button variant="secondary" type="button" onClick={() => void handleSave()} disabled={saving}>
-            <Save className="h-4 w-4" />
-            {saving ? "Saving…" : "Save"}
-          </Button>
+          {!isPaidInvoice && (
+            <Button variant="secondary" type="button" onClick={() => void handleSave()} disabled={saving}>
+              <Save className="h-4 w-4" />
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          )}
           {status !== "DRAFT" && (
             <>
               <Button
@@ -1279,6 +1290,7 @@ export default function InvoiceBuilder() {
             )}
           </div>
         )}
+        </fieldset>
       </form>
 
       {/* ---------------- Live preview column ---------------- */}
