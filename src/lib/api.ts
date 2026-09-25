@@ -60,6 +60,7 @@ export const DEFAULT_SETTINGS: Settings = {
 export const DEFAULT_TEMPLATE: TemplateCustomization = {
   invoiceTitleColor: ACCENT_COLOR,
   companyNameColor: "#0f172a",
+  thankYouMessage: "Terima kasih atas kerja sama Anda.",
   topBorder: { visible: false, color: ACCENT_COLOR, thickness: 4 },
   bottomBorder: { visible: false, color: ACCENT_COLOR, thickness: 4 },
   table: { headerStyle: "filled", headerColor: "#eff6ff", zebra: false },
@@ -92,6 +93,10 @@ export function sanitizeTemplate(raw: unknown): TemplateCustomization {
       typeof r.invoiceTitleColor === "string" ? r.invoiceTitleColor : base.invoiceTitleColor,
     companyNameColor:
       typeof r.companyNameColor === "string" ? r.companyNameColor : base.companyNameColor,
+    thankYouMessage:
+      typeof r.thankYouMessage === "string" && r.thankYouMessage.trim()
+        ? r.thankYouMessage.trim()
+        : base.thankYouMessage,
     topBorder: {
       visible: typeof r.topBorder?.visible === "boolean" ? r.topBorder.visible : base.topBorder.visible,
       color: typeof r.topBorder?.color === "string" ? r.topBorder.color : base.topBorder.color,

@@ -1084,6 +1084,22 @@ export default function InvoiceBuilder() {
                       onChange={(color) => patchTemplate({ companyNameColor: color })}
                     />
                   </div>
+
+                  <div className="mt-4">
+                    <label htmlFor="ib-thankyou-message" className="label">
+                      Closing line
+                    </label>
+                    <textarea
+                      id="ib-thankyou-message"
+                      className="input min-h-[88px] resize-y"
+                      value={data.template.thankYouMessage}
+                      onChange={(e) => patchTemplate({ thankYouMessage: e.target.value })}
+                      placeholder="Terima kasih atas kerja sama Anda."
+                    />
+                    <p className="mt-2 text-[11px] text-slate-400">
+                      This text is saved per company in Template Customization, so each workspace can use a different closing line.
+                    </p>
+                  </div>
                 </div>
 
                 {/* Decorative borders */}

@@ -76,6 +76,7 @@ export default function InvoicePreview({
 
   const companyName = profile.companyName || "Your Company";
   const initial = companyName.trim().charAt(0).toUpperCase() || "I";
+  const footerText = template.thankYouMessage?.trim() || `${companyName} — Terima kasih atas kerja sama Anda.`;
 
   return (
     <div className="invoice-paper relative overflow-hidden rounded-2xl px-8 py-10 text-slate-800 shadow-xl ring-1 ring-slate-200 sm:px-10">
@@ -281,7 +282,7 @@ export default function InvoicePreview({
       </div>
 
       <div className="mt-10 border-t border-slate-100 pt-4 text-center text-[11px] text-slate-400">
-        {companyName} — Terima kasih atas kerja sama Anda.
+        {footerText}
       </div>
     </div>
   );

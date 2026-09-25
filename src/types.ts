@@ -99,6 +99,7 @@ export interface TableStyleCustomization {
 export interface TemplateCustomization {
   invoiceTitleColor: string; // "INVOICE" heading text color (default: primary accent)
   companyNameColor: string; // company name text color
+  thankYouMessage: string; // footer closing line rendered under the invoice
   topBorder: TemplateBorder;
   bottomBorder: TemplateBorder;
   table: TableStyleCustomization;
