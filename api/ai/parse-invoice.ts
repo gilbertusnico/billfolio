@@ -67,6 +67,13 @@ function isRetryableStatus(status: number): boolean {
   return status === 429 || status === 503;
 }
 
+function isInvalidInvoicePrompt(prompt: string): boolean {
+  const destructiveSql = /\b(drop|truncate|alter|delete|update|insert|create|grant|revoke)\s+(table|database|schema|from|into|users?|invoices?)\b/i;
+  const invoiceContext = /\b(invoice|invoices|faktur|tagihan|tagih|bill|billing|harga|biaya|nominal|rupiah|rp|idr|diskon|discount|pajak|tax|jasa|layanan|produk|qty|quantity)\b|\b\d[\d.,]*\s*(?:jt|juta|rb|ribu|r?p|idr|usd|dollar|dolar)\b/i;
+
+  return destructiveSql.test(prompt) || !invoiceContext.test(prompt);
+}
+
 async function generateWithRetry(ai: GoogleGenAI, prompt: string) {
   const maxAttempts = 3;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -98,6 +105,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const prompt = typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
   if (!prompt || prompt.length > 10_000) {
     return res.status(400).json({ error: "Prompt wajib diisi dan maksimal 10.000 karakter." });
+  }
+  if (isInvalidInvoicePrompt(prompt)) {
+    return res.status(400).json({ error: "Input tidak valid. Masukkan detail invoice seperti klien, item, atau nominal." });
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
