@@ -25,7 +25,3 @@ dist-ssr
 supabase/.temp/
 .vercel
 .env*
-
-# SIT test artifacts (secrets & session tokens - never commit)
-tests/proposal/.env.live
-tests/proposal/.live-token.json
