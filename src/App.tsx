@@ -15,6 +15,9 @@ import InvoiceBuilder from "./pages/InvoiceBuilder";
 import Clients from "./pages/Clients";
 import Settings from "./pages/Settings";
 import PublicInvoice from "./pages/PublicInvoice";
+import ProposalDashboard from "./pages/ProposalDashboard";
+import ProposalBuilder from "./pages/ProposalBuilder";
+import ClientProposal from "./pages/ClientProposal";
 import AdminUsers from "./pages/admin/Users";
 import AdminCompanies from "./pages/admin/Companies";
 
@@ -30,13 +33,14 @@ function FullScreenLoading() {
 function AppRoutes() {
   const { authLoading } = useInvoiceData();
   const { pathname } = useLocation();
-  // Public invoice links must render instantly — no auth-loading gate, no login.
-  const isPublicPath = pathname.startsWith("/i/");
+  // Public document links must render instantly — no auth-loading gate, no login.
+  const isPublicPath = pathname.startsWith("/i/") || pathname.startsWith("/p/");
   if (authLoading && !isPublicPath) return <FullScreenLoading />;
 
   return (
     <Routes>
       <Route path="/i/:id" element={<PublicInvoice />} />
+      <Route path="/p/:token" element={<ClientProposal />} />
       <Route path="/login" element={<LoginPage />} />
 
       <Route
@@ -52,6 +56,9 @@ function AppRoutes() {
         <Route path="/invoices/:id" element={<InvoiceBuilder />} />
         <Route path="/clients" element={<Clients />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/proposals" element={<ProposalDashboard />} />
+        <Route path="/proposals/new" element={<ProposalBuilder />} />
+        <Route path="/proposals/:id/edit" element={<ProposalBuilder />} />
 
         <Route
           path="/admin/users"

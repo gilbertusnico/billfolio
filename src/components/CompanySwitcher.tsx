@@ -85,7 +85,7 @@ export default function CompanySwitcher({ onClose }: CompanySwitcherProps) {
   const handleAdd = async (input: CompanyInput) => {
     try {
       const company = await addCompany(input);
-      showToast(`${company.companyName || "Company"} created — it's now active`);
+      showToast(`${company.companyName || "Workspace"} created — it's now active`);
     } catch (err) {
       showToast(friendlyError(err), "error");
     }
@@ -96,7 +96,7 @@ export default function CompanySwitcher({ onClose }: CompanySwitcherProps) {
 
   const fallbackCompany: Company = {
     id: "",
-    companyName: "My Company",
+    companyName: "My Workspace",
     email: "",
     address: "",
     logoUrl: "",
@@ -128,7 +128,7 @@ export default function CompanySwitcher({ onClose }: CompanySwitcherProps) {
         <CompanyAvatar company={activeCompany ?? fallbackCompany} />
         <span className="min-w-0 flex-1 leading-tight">
           <span className="block truncate text-sm font-bold text-white">
-            {activeCompany?.companyName || "My Company"}
+            {activeCompany?.companyName || "My Workspace"}
           </span>
           <span className="block text-[11px] font-medium text-slate-400">Switch workspace</span>
         </span>
@@ -144,7 +144,7 @@ export default function CompanySwitcher({ onClose }: CompanySwitcherProps) {
         <div
           ref={menuRef}
           role="menu"
-          aria-label="Companies"
+          aria-label="Workspaces"
           onKeyDown={onMenuKeyDown}
           className="animate-fade-in absolute inset-x-3 top-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-xl border border-white/10 bg-slate-900 shadow-2xl ring-1 ring-black/40"
         >
@@ -162,7 +162,7 @@ export default function CompanySwitcher({ onClose }: CompanySwitcherProps) {
                 >
                   <CompanyAvatar company={c} size="sm" />
                   <span className="min-w-0 flex-1 truncate font-semibold text-slate-200">
-                    {c.companyName || "Untitled company"}
+                    {c.companyName || "Untitled workspace"}
                   </span>
                   {isActive && (
                     <Check className="h-4 w-4 shrink-0 text-blue-400" strokeWidth={2.5} />
@@ -179,7 +179,7 @@ export default function CompanySwitcher({ onClose }: CompanySwitcherProps) {
               className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-semibold text-blue-300 transition-colors duration-150 hover:bg-blue-500/10 focus-visible:bg-blue-500/10 focus-visible:outline-none"
             >
               <Plus className="h-4 w-4" strokeWidth={2.5} />
-              Add New Company
+              Add New Workspace
             </button>
           </div>
         </div>

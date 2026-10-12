@@ -33,6 +33,7 @@ interface ButtonLinkProps {
   to: string;
   variant?: ButtonVariant;
   className?: string;
+  "aria-label"?: string;
   children: ReactNode;
 }
 
@@ -40,11 +41,13 @@ export function ButtonLink({
   to,
   variant = "primary",
   className = "",
+  "aria-label": ariaLabel,
   children,
 }: ButtonLinkProps) {
   return (
     <Link
       to={to}
+      aria-label={ariaLabel}
       className={`${BASE} ${VARIANTS[variant]} ${className}`}
     >
       {children}

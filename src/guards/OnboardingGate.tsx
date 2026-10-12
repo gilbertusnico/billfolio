@@ -7,7 +7,7 @@ import { friendlyError } from "../lib/api";
 
 /**
  * Locks a signed-in, non-admin user who has no company into a NON-dismissible
- * "Add New Company" modal. They must create a company before any feature can
+ * "Add New Workspace" modal. They must create a workspace before any feature can
  * be used — no Escape, no backdrop click, no Cancel. The app renders behind
  * the overlay but nothing behind it is reachable.
  */
@@ -20,7 +20,7 @@ export default function OnboardingGate({ children }: { children: ReactNode }) {
   const handleSave = async (input: CompanyInput) => {
     try {
       const company = await addCompany(input);
-      showToast(`${company.companyName || "Company"} created — welcome aboard!`);
+      showToast(`${company.companyName || "Workspace"} created — welcome aboard!`);
     } catch (err) {
       showToast(friendlyError(err), "error");
     }

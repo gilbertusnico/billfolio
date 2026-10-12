@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { CheckCircle2, CreditCard, FileQuestion, LoaderCircle, Printer, TriangleAlert } from "lucide-react";
+import { CheckCircle2, Clock3, FileQuestion, LoaderCircle, Printer, TriangleAlert } from "lucide-react";
 import { sanitizeStyling, supabase } from "../lib/api";
 import { getDisplayStatus } from "../lib/format";
 import { loadMidtransSnap } from "../lib/midtrans";
@@ -39,6 +39,7 @@ interface RawInvoice {
   notes: string | null;
   status: InvoiceStatus;
   paid_at: string | null;
+  payment_reported_at: string | null;
   items: InvoiceItem[];
   created_at: string;
   updated_at: string;
@@ -84,6 +85,8 @@ function toInvoice(raw: RawInvoice): Invoice {
     notes: raw.notes ?? "",
     status: raw.status ?? "DRAFT",
     paidAt: raw.paid_at ?? null,
+    paymentReportedAt: raw.payment_reported_at ?? null,
+    shareLinkGeneratedAt: null,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
   };
@@ -154,7 +157,7 @@ export default function PublicInvoice() {
   const handleReportPayment = async () => {
     if (!payload || !id || reportingPayment) return;
     setReportingPayment(true);
-    const { error: rpcError } = await supabase.rpc("report_invoice_payment", {
+    const { data: reported, error: rpcError } = await supabase.rpc("report_invoice_payment", {
       p_invoice_id: id,
     });
     setReportingPayment(false);
@@ -163,7 +166,30 @@ export default function PublicInvoice() {
       showToast("We couldn't record your payment report — check your connection and try again.", "error");
       return;
     }
-    showToast("Thank you — your payment report was recorded. Payment will be confirmed after verification.");
+    if (reported) {
+      setPayload((current) => current
+        ? {
+            ...current,
+            invoice: {
+              ...current.invoice,
+              payment_reported_at: new Date().toISOString(),
+            },
+          }
+        : current);
+      showToast("Payment report received. It is now awaiting admin verification.");
+      return;
+    }
+
+    const { data: refreshed, error: refreshError } = await supabase.rpc("get_public_invoice", {
+      p_invoice_id: id,
+    });
+    if (refreshError) {
+      console.error("Could not refresh invoice after payment report:", refreshError);
+      showToast("The invoice status could not be refreshed. Please reload the page.", "error");
+      return;
+    }
+    if (refreshed) setPayload(refreshed as PublicPayload);
+    showToast("This invoice is no longer awaiting a payment report.", "info");
   };
 
   const handlePayNow = async () => {
@@ -296,6 +322,14 @@ export default function PublicInvoice() {
             <span className="inline-flex cursor-default items-center justify-center gap-2 rounded-xl bg-emerald-100 px-5 py-3 text-sm font-bold text-emerald-700 ring-1 ring-emerald-200">
               <CheckCircle2 className="h-4 w-4" />
               PAID
+            </span>
+          ) : displayStatus === "PAYMENT_REPORTED" ? (
+            <span
+              role="status"
+              className="inline-flex cursor-default items-center justify-center gap-2 rounded-xl bg-violet-100 px-5 py-3 text-sm font-semibold text-violet-800 ring-1 ring-violet-200"
+            >
+              <Clock3 className="h-4 w-4" aria-hidden />
+              Awaiting admin verification
             </span>
           ) : isActionable ? (
             <>

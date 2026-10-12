@@ -71,7 +71,7 @@ export default function CompanyModal({
     e.preventDefault();
     const companyName = form.companyName.trim();
     if (!companyName) {
-      setError("Give your company a name.");
+      setError("Give your workspace a name.");
       return;
     }
     const email = form.email.trim();
@@ -83,14 +83,14 @@ export default function CompanyModal({
   };
 
   return (
-    <Modal open={open} title="Add New Company" onClose={onClose} dismissible={dismissible}>
+    <Modal open={open} title="Add New Workspace" onClose={onClose} dismissible={dismissible}>
       <form onSubmit={submit} className="space-y-4">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
             {form.logoUrl ? (
               <img
                 src={form.logoUrl}
-                alt="Company logo preview"
+                alt="Workspace logo preview"
                 className="h-full w-full object-contain"
               />
             ) : (
@@ -119,7 +119,7 @@ export default function CompanyModal({
 
         <div>
           <label htmlFor="new-company-name" className="mb-1.5 block text-sm font-semibold text-slate-700">
-            Company name <span className="text-rose-500">*</span>
+            Workspace name <span className="text-rose-500">*</span>
           </label>
           <input
             id="new-company-name"
@@ -172,7 +172,7 @@ export default function CompanyModal({
             </Button>
           )}
           <Button type="submit" className={dismissible ? undefined : "flex-1 justify-center"}>
-            Create Company
+            Create Workspace
           </Button>
         </div>
       </form>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
 import {
   CheckCircle2,
   ChevronDown,
@@ -234,10 +234,17 @@ const newItem = (): InvoiceItem => ({
  * ("015000" → 15000, "05" → 5). Empty input resolves to 0.
  */
 function parseNumericInput(raw: string): number {
-  if (raw.trim() === "") return 0;
-  const cleaned = raw.replace(/^0+(?=\d)/, "");
+  const withoutGrouping = raw.replace(/,/g, "");
+  if (withoutGrouping.trim() === "") return 0;
+  const cleaned = withoutGrouping.replace(/^0+(?=\d)/, "");
   const value = Number(cleaned);
   return Number.isFinite(value) ? value : 0;
+}
+
+function formatUnitPriceInput(raw: string): string | null {
+  if (raw.includes(".")) return null;
+  const digits = raw.replace(/[^\d]/g, "");
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
 function normalizeClientLookup(value: string | undefined): string {
@@ -257,6 +264,7 @@ function defaultDates() {
 
 export default function InvoiceBuilder() {
   const { id } = useParams();
+  const { showLivePreview } = useOutletContext<{ showLivePreview: boolean }>();
   const isNew = !id;
   const { data, isLoading, upsertInvoice, updateSettings, updateTemplate, upsertClient } =
     useInvoiceData();
@@ -271,6 +279,9 @@ export default function InvoiceBuilder() {
   const [invoiceDate, setInvoiceDate] = useState(() => defaultDates().invoiceDate);
   const [dueDate, setDueDate] = useState(() => defaultDates().dueDate);
   const [items, setItems] = useState<InvoiceItem[]>([newItem()]);
+  const [unitPriceDrafts, setUnitPriceDrafts] = useState<Record<string, string>>(() =>
+    Object.fromEntries(items.map((item) => [item.id, item.unitPrice ? String(item.unitPrice) : ""]))
+  );
   const [taxRate, setTaxRate] = useState(0);
   const [discount, setDiscount] = useState(0);
   const [bankAccountId, setBankAccountId] = useState<string | null>(null);
@@ -322,7 +333,13 @@ export default function InvoiceBuilder() {
       setProjectName(inv.projectName);
       setInvoiceDate(inv.invoiceDate);
       setDueDate(inv.dueDate);
-      setItems(inv.items.length ? inv.items.map((i) => ({ ...i })) : [newItem()]);
+      const invoiceItems = inv.items.length ? inv.items.map((i) => ({ ...i })) : [newItem()];
+      setItems(invoiceItems);
+      setUnitPriceDrafts(
+        Object.fromEntries(
+          invoiceItems.map((item) => [item.id, item.unitPrice ? String(item.unitPrice) : ""])
+        )
+      );
       setTaxRate(inv.taxRate);
       setDiscount(inv.discount);
       setBankAccountId(inv.bankAccountId);
@@ -391,8 +408,47 @@ export default function InvoiceBuilder() {
   const updateItem = (itemId: string, patch: Partial<InvoiceItem>) =>
     setItems((list) => list.map((it) => (it.id === itemId ? { ...it, ...patch } : it)));
 
-  const removeItem = (itemId: string) =>
-    setItems((list) => (list.length > 1 ? list.filter((it) => it.id !== itemId) : [newItem()]));
+  const updateUnitPrice = (itemId: string, draft: string, input: HTMLInputElement) => {
+    const caret = input.selectionStart ?? draft.length;
+    const prefix = draft.slice(0, caret).replace(/,/g, "").replace(/[^\d.]/g, "");
+    const formatted = formatUnitPriceInput(draft);
+    if (formatted === null) return;
+    setUnitPriceDrafts((current) => ({ ...current, [itemId]: formatted }));
+    updateItem(itemId, { unitPrice: parseNumericInput(formatted) });
+    let formattedCaret = 0;
+    let prefixLength = 0;
+    while (formattedCaret < formatted.length && prefixLength < prefix.length) {
+      if (formatted[formattedCaret] !== ",") prefixLength += 1;
+      formattedCaret += 1;
+    }
+    requestAnimationFrame(() => input.setSelectionRange(formattedCaret, formattedCaret));
+  };
+
+  const addItem = () => {
+    const item = newItem();
+    setItems((list) => [...list, item]);
+    setUnitPriceDrafts((drafts) => ({ ...drafts, [item.id]: "" }));
+  };
+
+  const removeItem = (itemId: string) => {
+    const remainingItems = items.filter((item) => item.id !== itemId);
+    if (remainingItems.length) {
+      setItems(remainingItems);
+      setUnitPriceDrafts((drafts) => {
+        const nextDrafts = { ...drafts };
+        delete nextDrafts[itemId];
+        return nextDrafts;
+      });
+      return;
+    }
+    const item = newItem();
+    setItems([item]);
+    setUnitPriceDrafts((drafts) => {
+      const nextDrafts = { ...drafts, [item.id]: "" };
+      delete nextDrafts[itemId];
+      return nextDrafts;
+    });
+  };
 
   const buildInvoice = (): Invoice | null => {
     if (!clientId) {
@@ -605,6 +661,11 @@ export default function InvoiceBuilder() {
       setTaxRate(Math.max(0, Number(result.tax_rate) || 0));
       setDiscount(Math.max(0, Number(result.discount) || 0));
       setItems(parsedItems);
+      setUnitPriceDrafts(
+        Object.fromEntries(
+          parsedItems.map((item) => [item.id, item.unitPrice ? String(item.unitPrice) : ""])
+        )
+      );
 
       const dueDays = Math.max(0, Number(result.due_days) || 7);
       const due = new Date(`${invoiceDate}T00:00:00`);
@@ -646,7 +707,12 @@ export default function InvoiceBuilder() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+    <div>
+      <div
+        className={`grid gap-6 print:grid-cols-1 ${
+          showLivePreview ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : "grid-cols-1"
+        }`}
+      >
       {/* ---------------- Form column ---------------- */}
       <form
         onSubmit={(e) => e.preventDefault()}
@@ -864,15 +930,12 @@ export default function InvoiceBuilder() {
                         Unit price
                       </span>
                       <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        inputMode="decimal"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="(?:\\d{1,3}(?:,\\d{3})+|\\d+)?"
                         className="input py-2 text-right"
-                        value={item.unitPrice}
-                        onChange={(e) =>
-                          updateItem(item.id, { unitPrice: parseNumericInput(e.target.value) })
-                        }
+                        value={unitPriceDrafts[item.id] ?? ""}
+                        onChange={(e) => updateUnitPrice(item.id, e.target.value, e.target)}
                         aria-label="Unit price"
                       />
                     </div>
@@ -916,14 +979,12 @@ export default function InvoiceBuilder() {
                     aria-label="Quantity"
                   />
                   <input
-                    type="number"
-                    min="0"
-                    step="any"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="(?:\\d{1,3}(?:,\\d{3})+|\\d+)?"
                     className="input py-2 text-right"
-                    value={item.unitPrice}
-                    onChange={(e) =>
-                      updateItem(item.id, { unitPrice: parseNumericInput(e.target.value) })
-                    }
+                    value={unitPriceDrafts[item.id] ?? ""}
+                    onChange={(e) => updateUnitPrice(item.id, e.target.value, e.target)}
                     aria-label="Unit price"
                   />
                   <span className="text-right text-sm font-semibold text-slate-800">
@@ -945,7 +1006,7 @@ export default function InvoiceBuilder() {
             variant="secondary"
             type="button"
             className="mt-4"
-            onClick={() => setItems((list) => [...list, newItem()])}
+            onClick={addItem}
           >
             <Plus className="h-4 w-4" />
             Add Item
@@ -1347,7 +1408,10 @@ export default function InvoiceBuilder() {
       </form>
 
       {/* ---------------- Live preview column ---------------- */}
-      <div className="min-w-0 lg:sticky lg:top-24 lg:self-start">
+      <div
+        id="invoice-live-preview"
+        className={`${showLivePreview ? "block" : "hidden print:block"} min-w-0 lg:sticky lg:top-24 lg:self-start`}
+      >
         <div className="mb-2 flex items-center gap-2 px-1">
           <span className="relative flex h-2 w-2" aria-hidden>
             <span className="preview-pulse absolute inline-flex h-full w-full rounded-full bg-blue-500" />
@@ -1377,6 +1441,7 @@ export default function InvoiceBuilder() {
             />
           </div>
         </div>
+      </div>
       </div>
 
       <Modal

@@ -3,6 +3,7 @@ import type { ChangeEvent } from "react";
 import { Banknote, ImagePlus, Landmark, LogOut, Pencil, Plus, ShieldCheck, Trash2, X } from "lucide-react";
 import { useInvoiceData } from "../context/InvoiceDataContext";
 import { useToast } from "../components/Toast";
+import { supabase } from "../lib/api";
 import Button from "../components/Button";
 import Modal from "../components/Modal";
 import ConfirmDialog from "../components/ConfirmDialog";
@@ -55,6 +56,7 @@ export default function Settings() {
     upsertBankAccount,
     deleteBankAccount,
     userProfile,
+    user,
     isSuperAdmin,
     changePassword,
     signOut,
@@ -72,6 +74,12 @@ export default function Settings() {
   const [bankForm, setBankForm] = useState<BankDraft>(EMPTY_BANK);
   const [bankError, setBankError] = useState("");
   const [deletingBank, setDeletingBank] = useState<BankAccount | null>(null);
+  const [agencyWhatsappNumber, setAgencyWhatsappNumber] = useState(
+    typeof user?.user_metadata?.agency_whatsapp_number === "string"
+      ? user.user_metadata.agency_whatsapp_number
+      : ""
+  );
+  const [whatsappSaving, setWhatsappSaving] = useState(false);
 
   // Password change state
   const [newPassword, setNewPassword] = useState("");
@@ -99,6 +107,28 @@ export default function Settings() {
       logoUrl: profile.logoUrl,
     });
     showToast("Profile Saved");
+  };
+
+  const handleSaveAgencyWhatsapp = async () => {
+    const digits = agencyWhatsappNumber.replace(/\D/g, "");
+    if (digits.length < 9 || digits.length > 15) {
+      showToast("Enter a valid WhatsApp number with country code (9–15 digits).", "error");
+      return;
+    }
+    setWhatsappSaving(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: { agency_whatsapp_number: digits },
+      });
+      if (error) throw error;
+      setAgencyWhatsappNumber(digits);
+      showToast("Agency WhatsApp number saved.");
+    } catch (error) {
+      console.error("Failed to save agency WhatsApp number:", error);
+      showToast(error instanceof Error ? error.message : "Could not save the WhatsApp number.", "error");
+    } finally {
+      setWhatsappSaving(false);
+    }
   };
 
   const onLogoFile = (e: ChangeEvent<HTMLInputElement>) => {
@@ -367,6 +397,29 @@ export default function Settings() {
           <Button type="button" variant="secondary" onClick={openAddBank}>
             <Plus className="h-4 w-4" strokeWidth={2.5} />
             Add Bank Account
+          </Button>
+        </div>
+      </Panel>
+
+      <Panel
+        title="Proposal Contact"
+        description="WhatsApp number clients should use after approving a proposal. Include the country code, e.g. 628123456789."
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <label className="flex-1">
+            <span className="mb-1.5 block text-sm font-semibold text-slate-700">Agency WhatsApp number</span>
+            <input
+              className={FIELD_CLASS}
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              value={agencyWhatsappNumber}
+              onChange={(event) => setAgencyWhatsappNumber(event.target.value)}
+              placeholder="628123456789"
+            />
+          </label>
+          <Button type="button" disabled={whatsappSaving} onClick={() => void handleSaveAgencyWhatsapp()}>
+            {whatsappSaving ? "Saving…" : "Save WhatsApp"}
           </Button>
         </div>
       </Panel>

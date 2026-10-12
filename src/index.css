@@ -79,6 +79,36 @@
   animation: preview-pulse 4s ease-in-out infinite;
 }
 
+.live-preview-toggle {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: inline-flex;
+  border-radius: 12px;
+  padding: 1px;
+}
+
+.live-preview-toggle::before {
+  position: absolute;
+  z-index: -1;
+  inset: -150%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 275deg,
+    #2563eb 300deg,
+    #a855f7 326deg,
+    transparent 350deg 360deg
+  );
+  content: "";
+  animation: live-preview-border-spin 2.4s linear infinite;
+}
+
+@keyframes live-preview-border-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
 /* ---- A4 invoice paper (print + on-screen preview) ---- */
 .invoice-paper {
   width: 100%;

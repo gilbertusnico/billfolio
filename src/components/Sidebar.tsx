@@ -1,12 +1,13 @@
 import { useEffect, useRef } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { Building2, FileText, LayoutDashboard, LogOut, PanelLeftClose, PanelLeftOpen, Receipt, Settings, Users, X } from "lucide-react";
+import { Building2, FileText, LayoutDashboard, LogOut, PanelLeftClose, PanelLeftOpen, Receipt, Settings, Users, X, ClipboardList } from "lucide-react";
 import CompanySwitcher from "./CompanySwitcher";
 import { useInvoiceData } from "../context/InvoiceDataContext";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/invoices", label: "Invoices", icon: FileText, end: false },
+  { to: "/proposals", label: "Proposals", icon: ClipboardList, end: false },
   { to: "/clients", label: "Clients", icon: Users, end: false },
   { to: "/settings", label: "Settings", icon: Settings, end: false },
 ];

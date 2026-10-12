@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { Menu, Plus } from "lucide-react";
+import { Eye, EyeOff, Menu, Plus } from "lucide-react";
 import Sidebar from "./Sidebar";
 import { ButtonLink } from "./Button";
 import { useInvoiceData } from "../context/InvoiceDataContext";
@@ -12,6 +12,8 @@ function pageTitle(pathname: string): string {
   if (pathname.startsWith("/invoices/")) return "Edit Invoice";
   if (pathname === "/clients") return "Clients";
   if (pathname === "/settings") return "Settings";
+  if (pathname === "/proposals") return "Proposals";
+  if (pathname === "/proposals/new") return "New Proposal";
   if (pathname === "/admin/users") return "Team Users";
   if (pathname === "/admin/companies") return "Companies & Access";
   return "BillFolio";
@@ -25,6 +27,11 @@ export default function Layout() {
   const { pathname } = useLocation();
   const { activeCompanyId } = useInvoiceData();
   const showNewInvoice = pathname === "/" || pathname === "/invoices";
+  const showInvoicePreviewToggle =
+    pathname === "/invoices/new" || pathname.startsWith("/invoices/");
+  const [showInvoicePreview, setShowInvoicePreview] = useState(false);
+
+  const toggleInvoicePreview = () => setShowInvoicePreview((visible) => !visible);
 
   const toggleSidebar = () => {
     setSidebarCollapsed((collapsed) => {
@@ -71,6 +78,23 @@ export default function Layout() {
               {pageTitle(pathname)}
             </h1>
             <div className="ml-auto flex items-center gap-3">
+              {showInvoicePreviewToggle && (
+                <div className="live-preview-toggle print:hidden">
+                  <button
+                    type="button"
+                    aria-expanded={showInvoicePreview}
+                    aria-controls="invoice-live-preview"
+                    onClick={toggleInvoicePreview}
+                    className="relative z-10 inline-flex items-center gap-2 rounded-[10px] bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                  >
+                    {showInvoicePreview ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    <span className="hidden sm:inline">
+                      {showInvoicePreview ? "Hide live preview" : "Show live preview"}
+                    </span>
+                    <span className="sm:hidden">{showInvoicePreview ? "Hide preview" : "Preview"}</span>
+                  </button>
+                </div>
+              )}
               {showNewInvoice && (
                 <ButtonLink to="/invoices/new">
                   <Plus className="h-4 w-4" strokeWidth={2.5} />
@@ -85,7 +109,7 @@ export default function Layout() {
           key={`${pathname}:${activeCompanyId ?? ""}`}
           className={`animate-fade-in mx-auto w-full flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8`}
         >
-          <Outlet />
+          <Outlet context={{ showLivePreview: showInvoicePreview }} />
         </main>
       </div>
     </div>
