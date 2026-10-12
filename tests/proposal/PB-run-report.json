@@ -1,0 +1,167 @@
+{
+  "mode": "SIM",
+  "ranAt": "2026-10-12T19:46:33.091Z",
+  "results": [
+    {
+      "id": "PB-01",
+      "name": "Happy path buat proposal",
+      "verdict": "PASS",
+      "evidence": "LIVE DB: status=DRAFT id=ff48f526 token=f49e0ae6… title=\"SIT-PB Website Redesign Phase 1\"",
+      "note": ""
+    },
+    {
+      "id": "PB-02",
+      "name": "Perhitungan total & DP saat create",
+      "verdict": "PASS",
+      "evidence": "total=12000000 (base 10jt + required 2jt; opsional 1.5jt TIDAK dihitung), dp=6000000",
+      "note": ""
+    },
+    {
+      "id": "PB-03",
+      "name": "Addon required ter-select otomatis",
+      "verdict": "PASS",
+      "evidence": "required.is_selected=true, optional.is_selected=false",
+      "note": ""
+    },
+    {
+      "id": "PB-04",
+      "name": "Milestone sort order",
+      "verdict": "PASS",
+      "evidence": "sort_order=[0,1]",
+      "note": ""
+    },
+    {
+      "id": "PB-05",
+      "name": "Validasi: client wajib",
+      "verdict": "PASS",
+      "evidence": "pesan=\"Select a client from your Clients list.\"",
+      "note": ""
+    },
+    {
+      "id": "PB-05b",
+      "name": "client dipilih tapi nama kosong",
+      "verdict": "PASS",
+      "evidence": "pesan=\"Select a client from your Clients list.\"",
+      "note": ""
+    },
+    {
+      "id": "PB-06",
+      "name": "Validasi: title wajib",
+      "verdict": "PASS",
+      "evidence": "pesan=\"Project title is required.\"",
+      "note": ""
+    },
+    {
+      "id": "PB-07",
+      "name": "Validasi: base price",
+      "verdict": "PASS",
+      "evidence": "pesan=\"Base price must be a valid non-negative amount.\"",
+      "note": ""
+    },
+    {
+      "id": "PB-08a",
+      "name": "DP = 0",
+      "verdict": "PASS",
+      "evidence": "pesan=\"DP percentage must be a whole number from 1 to 100.\"",
+      "note": ""
+    },
+    {
+      "id": "PB-08b",
+      "name": "DP = 101",
+      "verdict": "PASS",
+      "evidence": "pesan=\"DP percentage must be a whole number from 1 to 100.\"",
+      "note": ""
+    },
+    {
+      "id": "PB-08c",
+      "name": "DP = 50.5",
+      "verdict": "PASS",
+      "evidence": "pesan=\"DP percentage must be a whole number from 1 to 100.\"",
+      "note": ""
+    },
+    {
+      "id": "PB-09",
+      "name": "Validasi: bank wajib",
+      "verdict": "PASS",
+      "evidence": "pesan=\"Add a bank account in Settings and select it for this proposal.\"",
+      "note": ""
+    },
+    {
+      "id": "PB-10",
+      "name": "Validasi: WA agency wajib",
+      "verdict": "PASS",
+      "evidence": "pesan=\"Set the agency WhatsApp number in Settings before creating a proposal.\"",
+      "note": ""
+    },
+    {
+      "id": "PB-11",
+      "name": "Addon tanpa judul diabaikan",
+      "verdict": "PASS",
+      "evidence": "addon kosong dibuang: dikirim=[\"Real\"]; (price addon divalidasi terpisah)",
+      "note": ""
+    },
+    {
+      "id": "PB-07b",
+      "name": "formatPriceInput strip karakter",
+      "verdict": "PASS",
+      "evidence": "input \"-1.000abc,2000\" -> \"1.0002000\" (minus juga ikut ter-strip => nilai tak bisa negatif via UI)",
+      "note": ""
+    },
+    {
+      "id": "PB-12",
+      "name": "Snapshot bank dibekukan",
+      "verdict": "PASS",
+      "evidence": "setelah bank diubah -> proposal tetap simpan \"123-4567890\" (kolom snapshot independen, tidak ada FK-sync)",
+      "note": ""
+    },
+    {
+      "id": "PB-13",
+      "name": "Rollback parsial (insert addons gagal)",
+      "verdict": "PASS",
+      "evidence": "error dilempar=true, proposal yatim tersisa=0 (rollback delete berhasil)",
+      "note": ""
+    },
+    {
+      "id": "PB-14",
+      "name": "Token unik UUIDv4",
+      "verdict": "PASS",
+      "evidence": "tokenDB A=0ac28e5a… B=7595851a… berbeda & cocok regex UUIDv4",
+      "note": ""
+    },
+    {
+      "id": "PB-15",
+      "name": "Cancel tidak menyimpan",
+      "verdict": "PASS",
+      "evidence": "delta row tes setelah cancel (tanpa panggilan save)=0; jalur kode: onClick Cancel hanya navigate()",
+      "note": ""
+    },
+    {
+      "id": "PB-16",
+      "name": "Double-submit proteksi",
+      "verdict": "PASS",
+      "evidence": "2 klik paralel -> eksekusi=1, row=1 (guard disabled={saving}; TANPA idempotency-key — lihat catatan)",
+      "note": ""
+    },
+    {
+      "id": "PB-D1",
+      "name": "[DEFECT] dot-thousands korupsi senyap",
+      "verdict": "FAIL",
+      "evidence": "ketik \"10.000.000\" -> tampil \"10.000000\" -> tersimpan 10 (harusnya 10.000.000). Validasi lolos krn finite => DATA CORRUPTION senyap",
+      "note": "CONFIRMED defect — fail by-design test"
+    },
+    {
+      "id": "PB-D2",
+      "name": "[DEFECT] email invalid lolos create path",
+      "verdict": "FAIL",
+      "evidence": "validasi=\"LOLOS\", payload clientEmail=\"bukan-email\" dikirim ke DB (create pakai insert langsung, bukan RPC update_proposal yg juga tak memvalidasi email)",
+      "note": "CONFIRMED: kolom VARCHAR(100) tanpa CHECK email => typo email klien = link approval terkirim salah tanpa warning"
+    },
+    {
+      "id": "PB-D3",
+      "name": "[INFO] dp_amount presisi",
+      "verdict": "PASS",
+      "evidence": "base 1.000.001 x 33% -> total=3000001 dp=990000.3300000001 (DB DECIMAL(12,2), JS float — cek pembulatan pas LIVE)",
+      "note": ""
+    }
+  ]
+}
