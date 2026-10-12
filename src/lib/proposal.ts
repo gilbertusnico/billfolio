@@ -124,7 +124,56 @@ export async function fetchPublicProposal(token: string): Promise<Proposal | nul
   };
 }
 
+export interface ProposalValidationIssue {
+  message: string;
+  value?: unknown;
+}
+
+/**
+ * Server-grade validation shared by the builder UI and the DB layer so a
+ * proposal can never be persisted with an invalid amount, percentage, or email.
+ */
+export function validateProposalInput(input: Pick<
+  NewProposal,
+  "title" | "clientName" | "clientEmail" | "basePrice" | "dpPercentage" | "addons" | "milestones"
+>): ProposalValidationIssue[] {
+  const issues: ProposalValidationIssue[] = [];
+  if (!String(input.title ?? "").trim()) {
+    issues.push({ message: "Project title is required." });
+  }
+  if (!String(input.clientName ?? "").trim()) {
+    issues.push({ message: "Client name is required." });
+  }
+  const email = String(input.clientEmail ?? "").trim();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    issues.push({ message: "Enter a valid client email address.", value: email });
+  }
+  if (!Number.isFinite(input.basePrice) || input.basePrice < 0) {
+    issues.push({ message: "Base price must be a valid non-negative amount.", value: input.basePrice });
+  }
+  if (!Number.isInteger(input.dpPercentage) || input.dpPercentage < 1 || input.dpPercentage > 100) {
+    issues.push({ message: "DP percentage must be a whole number from 1 to 100.", value: input.dpPercentage });
+  }
+  for (const addon of input.addons) {
+    if (!String(addon.title ?? "").trim()) {
+      issues.push({ message: "Add-on title is required." });
+    }
+    if (!Number.isFinite(addon.price) || addon.price < 0) {
+      issues.push({ message: `Add-on "${addon.title}" needs a valid non-negative price.`, value: addon.price });
+    }
+  }
+  for (const milestone of input.milestones) {
+    if (!String(milestone.title ?? "").trim()) {
+      issues.push({ message: "Milestone title is required." });
+    }
+  }
+  return issues;
+}
+
 export async function createProposal(input: NewProposal): Promise<Proposal> {
+  const issues = validateProposalInput(input);
+  if (issues.length) throw new Error(issues[0].message);
+
   const token = crypto.randomUUID();
   const initialTotal =
     input.basePrice +
@@ -138,10 +187,10 @@ export async function createProposal(input: NewProposal): Promise<Proposal> {
       company_id: input.workspaceId,
       client_id: input.clientId,
       token,
-      title: input.title,
-      client_name: input.clientName,
-      client_company: input.clientCompany || null,
-      client_email: input.clientEmail,
+      title: input.title.trim(),
+      client_name: input.clientName.trim(),
+      client_company: input.clientCompany?.trim() || null,
+      client_email: input.clientEmail.trim().toLowerCase(),
       project_summary: input.projectSummary || null,
       base_price: input.basePrice,
       dp_percentage: input.dpPercentage,
@@ -152,7 +201,7 @@ export async function createProposal(input: NewProposal): Promise<Proposal> {
       agency_whatsapp_number: input.agencyWhatsappNumber,
       status: "DRAFT",
       total_amount: initialTotal,
-      dp_amount: initialTotal * (input.dpPercentage / 100),
+      dp_amount: Math.round(initialTotal * (input.dpPercentage / 100)),
     })
     .select("*")
     .single();
@@ -206,16 +255,19 @@ export async function updateProposal(
   workspaceId: string,
   input: NewProposal
 ): Promise<void> {
+  const issues = validateProposalInput(input);
+  if (issues.length) throw new Error(issues[0].message);
+
   const { error } = await supabase.rpc("update_proposal", {
     p_proposal_id: proposalId,
     p_agency_id: agencyId,
     p_workspace_id: workspaceId,
     p_payload: {
       client_id: input.clientId,
-      title: input.title,
-      client_name: input.clientName,
-      client_company: input.clientCompany || null,
-      client_email: input.clientEmail,
+      title: input.title.trim(),
+      client_name: input.clientName.trim(),
+      client_company: input.clientCompany?.trim() || null,
+      client_email: input.clientEmail.trim().toLowerCase(),
       project_summary: input.projectSummary || null,
       base_price: input.basePrice,
       dp_percentage: input.dpPercentage,
@@ -226,14 +278,14 @@ export async function updateProposal(
       agency_whatsapp_number: input.agencyWhatsappNumber,
     },
     p_addons: input.addons.map((addon) => ({
-      title: addon.title,
+      title: addon.title.trim(),
       description: addon.description || null,
       price: addon.price,
       is_required: addon.isRequired,
       is_selected: addon.isRequired,
     })),
     p_milestones: input.milestones.map((milestone) => ({
-      title: milestone.title,
+      title: milestone.title.trim(),
       description: milestone.description || null,
     })),
   });
@@ -245,14 +297,18 @@ export async function markProposalSent(
   agencyId: string,
   workspaceId: string
 ): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("proposals")
     .update({ status: "SENT" })
     .eq("id", proposalId)
     .eq("agency_id", agencyId)
     .eq("company_id", workspaceId)
-    .eq("status", "DRAFT");
+    .eq("status", "DRAFT")
+    .select("id");
   if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error("This proposal is no longer a draft, so it could not be marked as sent.");
+  }
 }
 
 export async function respondToProposal(

@@ -23,15 +23,19 @@ interface MilestoneDraft {
 const inputClass = "input";
 
 function formatPriceInput(value: string): string {
-  const normalized = value.replace(/,/g, "").replace(/[^\d.]/g, "");
-  const [integerPart = "", ...decimalParts] = normalized.split(".");
-  const groupedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  if (decimalParts.length === 0) return groupedInteger;
-  return `${groupedInteger}.${decimalParts.join("").replace(/\./g, "")}`;
+  // Keep only digits and a single decimal separator. Indonesian users often
+  // type "10.000.000" (dot as thousands separator); treat every dot/comma in
+  // the raw input as a grouping separator so it parses as 10000000 instead of
+  // silently becoming 10 (PB-D1 data corruption).
+  const digitsOnly = value.replace(/[^0-9]/g, "");
+  const groupedInteger = digitsOnly.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return groupedInteger;
 }
 
 function parsePriceInput(value: string): number {
-  return Number(value.replace(/,/g, ""));
+  const digits = value.replace(/[^\d]/g, "");
+  if (!digits) return Number.NaN;
+  return Number(digits);
 }
 
 export default function ProposalBuilder() {
@@ -156,6 +160,11 @@ export default function ProposalBuilder() {
     }
     if (!Number.isInteger(dp) || dp < 1 || dp > 100) {
       setFormError("DP percentage must be a whole number from 1 to 100.");
+      return;
+    }
+    const trimmedEmail = clientEmail.trim();
+    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(trimmedEmail)) {
+      setFormError("Enter a valid client email address.");
       return;
     }
     const paymentBank = data.bankAccounts.find((bank) => bank.id === paymentBankId);
