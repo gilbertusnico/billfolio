@@ -1,0 +1,68 @@
+[
+ {
+  "id": "PD-01",
+  "name": "Dashboard query scoped to agency+workspace",
+  "status": "PASS",
+  "detail": "rows=12 mine=12 otherLeak=0"
+ },
+ {
+  "id": "PD-02",
+  "name": "ORDER created_at.desc stable",
+  "status": "PASS",
+  "detail": "2026-10-12T20:19:20.620229+00:00,2026-10-12T20:19:20.493269+00:00,2026-10-12T20:19:20.342423+00:00 vs 2026-10-12T20:19:20.620229+00:00,2026-10-12T20:19:20.493269+00:00,2026-10-12T20:19:20.342423+00:00"
+ },
+ {
+  "id": "PD-04",
+  "name": "Pagination: page1=10 rows, page2=rest, total consistent",
+  "status": "PASS",
+  "detail": "total=12 p2=2 pageCount=2"
+ },
+ {
+  "id": "PD-05",
+  "name": "markProposalSent DRAFT->SENT with full guard",
+  "status": "PASS",
+  "detail": "{\"status\":\"SENT\"}"
+ },
+ {
+  "id": "PD-06",
+  "name": "Re-mark on SENT: HTTP ok but 0 rows -> UI shows success anyway (DEF-01)",
+  "status": "FINDING",
+  "detail": "HTTP 200 body=[] | app code ignores rowcount"
+ },
+ {
+  "id": "PD-07",
+  "name": "Mark-sent with wrong workspace id -> stays DRAFT",
+  "status": "PASS",
+  "detail": "{\"status\":\"DRAFT\"} http=200"
+ },
+ {
+  "id": "PD-09/REG-06",
+  "name": "DB enum accepts PAID/EXPIRED writes (dead states only via manual SQL)",
+  "status": "FINDING",
+  "detail": "PAID patch=ACCEPTED: [{\"id\":\"24097a90-1e67-45b4-ac2e-02aa3ed26ac4\",\"agency_id\":\"d697abe0-de7c-4051-a6 | no app code ever sets it -> violet/amber badges unreachable in UI flow"
+ },
+ {
+  "id": "PD-10",
+  "name": "Empty workspace -> 0 rows (empty-state renders)",
+  "status": "PASS",
+  "detail": "rows=0"
+ },
+ {
+  "id": "PD-11",
+  "name": "Anon cannot list proposals (RLS)",
+  "status": "PASS",
+  "detail": "HTTP 401 rows=undefined"
+ },
+ {
+  "id": "PD-12",
+  "name": "All listed rows carry token (copy-link/open-view safe)",
+  "status": "PASS",
+  "detail": "missing=0"
+ },
+ {
+  "id": "PD-13",
+  "name": "Null total falls back to base_price in query result",
+  "status": "PASS",
+  "detail": "{\"total_amount\":null,\"base_price\":1000000}"
+ }
+]

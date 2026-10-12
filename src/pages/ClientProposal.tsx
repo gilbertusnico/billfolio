@@ -146,7 +146,8 @@ export default function ClientProposal() {
         dp_invoice_id: response.invoiceId,
         client_signature_path: answer === "APPROVED" ? `signatures/${token}/signature.png` : null,
         total_amount: answer === "APPROVED" ? total : proposal.total_amount,
-        dp_amount: answer === "APPROVED" ? total * (Number(proposal.dp_percentage) / 100) : proposal.dp_amount,
+        dp_amount:
+          answer === "APPROVED" ? Math.round(total * (Number(proposal.dp_percentage) / 100)) : proposal.dp_amount,
         client_signature_url: signatureUrl,
         addons: (proposal.addons ?? []).map((addon) => ({
           ...addon,
@@ -262,7 +263,7 @@ export default function ClientProposal() {
                   </div>
                   <div className="flex justify-between gap-4 p-4 text-sm">
                     <span className="text-slate-600">Down payment ({proposal.dp_percentage}%)</span>
-                    <strong className="text-slate-900">{formatIDR(canRespond ? currentTotal * (Number(proposal.dp_percentage) / 100) : Number(proposal.dp_amount ?? 0))}</strong>
+                    <strong className="text-slate-900">{formatIDR(canRespond ? Math.round(currentTotal * (Number(proposal.dp_percentage) / 100)) : Number(proposal.dp_amount ?? 0))}</strong>
                   </div>
                 </div>
               </section>

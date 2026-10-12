@@ -1,0 +1,116 @@
+[
+ {
+  "id": "PE-01",
+  "name": "Edit DRAFT via update_proposal succeeds",
+  "status": "PASS",
+  "detail": "\"\""
+ },
+ {
+  "id": "PE-01b",
+  "name": "Recalc total=10jt dp=4jt (8jt+2jt req @40%)",
+  "status": "PASS",
+  "detail": "{\"title\":\"Edited title\",\"base_price\":8000000,\"total_amount\":10000000,\"dp_amount\":4000000,\"updated_at\":\"2026-10-12T20:18:37.863489+00:00\"}"
+ },
+ {
+  "id": "PE-02",
+  "name": "Delete-and-reinsert: only NEW addons exist",
+  "status": "PASS",
+  "detail": "[[\"New req\",true],[\"New opt\",false]]"
+ },
+ {
+  "id": "PE-03",
+  "name": "Milestones replaced, sort_order 0..2 contiguous",
+  "status": "PASS",
+  "detail": "[{\"title\":\"Ms1\",\"sort_order\":0},{\"title\":\"Ms2\",\"sort_order\":1},{\"title\":\"Ms3\",\"sort_order\":2}]"
+ },
+ {
+  "id": "PE-04",
+  "name": "Second edit succeeds (re-editable)",
+  "status": "PASS",
+  "detail": "\"\""
+ },
+ {
+  "id": "PE-05",
+  "name": "Edit APPROVED rejected by RPC",
+  "status": "PASS",
+  "detail": "{\"code\":\"P0001\",\"details\":null,\"hint\":null,\"message\":\"Approved proposals can no longer be edited\"}"
+ },
+ {
+  "id": "PE-06",
+  "name": "Edit PAID rejected (by-code: RPC checks IN ('APPROVED','PAID') OR dp_invoice_id IS NOT NULL)",
+  "status": "INFO",
+  "detail": "PAID unreachable in app (dead state, see REG-06); APPROVED branch proven in PE-05"
+ },
+ {
+  "id": "PE-07",
+  "name": "Empty title rejected (22023)",
+  "status": "PASS",
+  "detail": "{\"code\":\"22023\",\"details\":null,\"hint\":null,\"message\":\"Project title is required\"}"
+ },
+ {
+  "id": "PE-08",
+  "name": "DP 0 and 101 both rejected",
+  "status": "PASS",
+  "detail": "0->400 {\"code\":\"22023\",\"details\":null,\"hint\":null,\"message\":\"Invali | 101->400"
+ },
+ {
+  "id": "PE-09",
+  "name": "Negative base price rejected",
+  "status": "PASS",
+  "detail": "{\"code\":\"22023\",\"details\":null,\"hint\":null,\"message\":\"Invalid base price or down-payment percentage\"}"
+ },
+ {
+  "id": "PE-10",
+  "name": "Addon with empty title rejected",
+  "status": "PASS",
+  "detail": "{\"code\":\"22023\",\"details\":null,\"hint\":null,\"message\":\"Add-on title is required\"}"
+ },
+ {
+  "id": "PE-11",
+  "name": "Atomic rollback: failed edit leaves addons+total untouched",
+  "status": "PASS",
+  "detail": "before=Old req,Old opt after=Old req,Old opt total=10000000 err={\"code\":\"22023\",\"details\":null,\"hint\":null,\"message\":\"Milestone title is require"
+ },
+ {
+  "id": "PE-12",
+  "name": "Wrong workspace_id -> 'not found in this workspace'",
+  "status": "PASS",
+  "detail": "{\"code\":\"P0001\",\"details\":null,\"hint\":null,\"message\":\"Proposal not found in this workspace\"} (real other ws)"
+ },
+ {
+  "id": "PE-13",
+  "name": "Client outside target workspace rejected",
+  "status": "PASS",
+  "detail": "{\"code\":\"22023\",\"details\":null,\"hint\":null,\"message\":\"Select a client from this workspace\"}"
+ },
+ {
+  "id": "PE-14",
+  "name": "Anon cannot call update_proposal (grant revoked)",
+  "status": "PASS",
+  "detail": "HTTP 401 {\"code\":\"42501\",\"details\":null,\"hint\":null,\"message\":\"permission denied for function update_proposal\"}"
+ },
+ {
+  "id": "PE-15",
+  "name": "Spoofed p_agency_id != auth.uid() rejected",
+  "status": "PASS",
+  "detail": "{\"code\":\"42501\",\"details\":null,\"hint\":null,\"message\":\"Not authorized to edit this proposal\"}"
+ },
+ {
+  "id": "PE-16",
+  "name": "Direct REST PATCH still allowed (bypasses update_proposal validation)",
+  "status": "FINDING",
+  "detail": "PATCH succeeded HTTP 200 -> RLS allows raw writes; RPC guards (status/title/dp) NOT enforced if UI bug/curl used"
+ },
+ {
+  "id": "PE-17",
+  "name": "Edit after REAL approve (has dp_invoice_id) rejected twice-guarded",
+  "status": "PASS",
+  "detail": "{\"code\":\"P0001\",\"details\":null,\"hint\":null,\"message\":\"Approved proposals can no longer be edited\"}"
+ },
+ {
+  "id": "PE-18",
+  "name": "Child ordering by created_at (builder prefill) - ties possible same-ms insert",
+  "status": "INFO",
+  "detail": "n=2 distinct_ts=1"
+ }
+]

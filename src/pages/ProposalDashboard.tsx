@@ -164,21 +164,23 @@ export default function ProposalDashboard() {
                       Mark sent & copy link
                     </Button>
                   )}
-                  {proposal.status !== "DRAFT" && (
+                  {proposal.status !== "DRAFT" && proposal.token && (
                     <Button type="button" variant="secondary" onClick={() => void copyLink(proposal)}>
                       <Clipboard className="h-4 w-4" />
                       Copy client link
                     </Button>
                   )}
-                  <Link
-                    to={`/p/${proposal.token}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={`Open public view for ${proposal.title}`}
-                    className="inline-flex items-center justify-center rounded-lg border border-slate-200 p-2.5 text-slate-600 hover:bg-slate-50"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </Link>
+                  {proposal.token ? (
+                    <Link
+                      to={`/p/${proposal.token}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={`Open public view for ${proposal.title}`}
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-200 p-2.5 text-slate-600 hover:bg-slate-50"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </Link>
+                  ) : null}
                 </div>
               </article>
             ))}

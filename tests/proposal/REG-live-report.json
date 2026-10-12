@@ -1,0 +1,20 @@
+[
+ {
+  "id": "REG-03",
+  "name": "DP invoice readable via get_public_invoice (public link works)",
+  "status": "PASS",
+  "detail": "HTTP 200 company=true hasInvoicePayload=true keys=company,invoice"
+ },
+ {
+  "id": "REG-03b",
+  "name": "report_invoice_payment callable on DP invoice",
+  "status": "INFO",
+  "detail": "HTTP 404 {\"code\":\"PGRST202\",\"details\":\"Searched for the function public.report_invoice_payment with parameter"
+ },
+ {
+  "id": "REG-05",
+  "name": "Delete referenced client -> proposal survives w/ client_id=NULL",
+  "status": "PASS",
+  "detail": "delHTTP=204 client_id=null"
+ }
+]
