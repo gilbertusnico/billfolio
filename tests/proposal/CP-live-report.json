@@ -1,0 +1,146 @@
+[
+ {
+  "id": "CP-04b",
+  "name": "DRAFT visible via link (spec: by-design; DEF-02 risk)",
+  "status": "PASS",
+  "detail": "HTTP 200, data=PRESENT -> early-link exposure confirmed"
+ },
+ {
+  "id": "CP-01",
+  "name": "Client fetch via RPC (anon)",
+  "status": "PASS",
+  "detail": "status=SENT addons=2 total=12000000 dp=6000000"
+ },
+ {
+  "id": "CP-02",
+  "name": "Tenant-internal IDs not exposed via RPC",
+  "status": "PASS",
+  "detail": "keys=id,title,token,status,dp_amount,base_price,created_at,approved_at,client_name,total_amount,dp_invoice_id,dp_percentage,client_company,project_summary,client_signature_path | leak=none (note: dp_invoice_id+token present BY DESIGN for View-invoice link)"
+ },
+ {
+  "id": "CP-04",
+  "name": "Unknown token -> null",
+  "status": "PASS",
+  "detail": "HTTP 200 body=null"
+ },
+ {
+  "id": "CP-09",
+  "name": "Required addon present+selected",
+  "status": "PASS",
+  "detail": "{\"id\":\"10613cbf-7e90-4a86-9da8-e7649e13c36e\",\"price\":2000000,\"title\":\"Req addon\",\"created_at\":\"2026-10-12T20:13:51.122728+00:00\",\"description\":null,\"is_required\":true,\"is_selected\":true,\"proposal_id\":\"3db638f3-5464-4b76-a81e-fc8d45cde8d5\"}"
+ },
+ {
+  "id": "CP-15",
+  "name": "Approve w/ optional addon -> RPC ok + invoice_id",
+  "status": "PASS",
+  "detail": "{\"ok\":true,\"invoice_id\":\"e1a47ca0-3e1f-46de-bc30-7853e9091940\"}"
+ },
+ {
+  "id": "CP-16",
+  "name": "Status APPROVED + approved_at + signature url stored",
+  "status": "PASS",
+  "detail": "{\"status\":\"APPROVED\",\"total_amount\":13500000,\"dp_amount\":6750000,\"approved_at\":\"2026-10-12T20:13:52.078053+00:00\",\"client_signature_url\":\"https://ewmqsdctvpzmpvyzfqyo.supabase.co/storage/v1/object/pub"
+ },
+ {
+  "id": "CP-16b",
+  "name": "Recalc total=13.5jt dp=6.75jt",
+  "status": "PASS",
+  "detail": "total=13500000 dp=6750000"
+ },
+ {
+  "id": "CP-16c",
+  "name": "Optional addon is_selected=true server-side",
+  "status": "PASS",
+  "detail": "{\"is_selected\":true}"
+ },
+ {
+  "id": "CP-17",
+  "name": "DP invoice created: number format/PENDING/due+14d",
+  "status": "PASS",
+  "detail": "num=INV/KORD/0008 status=PENDING due=2026-10-26 approved=2026-10-12"
+ },
+ {
+  "id": "CP-18",
+  "name": "Invoice item 'DP <title> (50%)' amount=dp_amount",
+  "status": "PASS",
+  "detail": "[{\"id\":\"8ade5eec-fadd-458e-b57c-0810eee64c9a\",\"quantity\":1,\"unitPrice\":6750000,\"description\":\"DP SIT-CP bf5b80d0 (50%)\"}]"
+ },
+ {
+  "id": "CP-19",
+  "name": "Invoice subtotal/grand_total == dp_amount",
+  "status": "PASS",
+  "detail": "sub=6750000 grand=6750000 tax=0 disc=0"
+ },
+ {
+  "id": "CP-19b",
+  "name": "Invoice snapshots client+bank copied",
+  "status": "PASS",
+  "detail": "client_snap=true bank_snap=true bank_acc=same-as-proposal-snapshot"
+ },
+ {
+  "id": "CP-20",
+  "name": "ensure_proposal_dp_invoice idempotent (same invoice)",
+  "status": "PASS",
+  "detail": "\"e1a47ca0-3e1f-46de-bc30-7853e9091940\""
+ },
+ {
+  "id": "CP-20b",
+  "name": "Still exactly 1 invoice linked",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
+  "id": "CP-22",
+  "name": "Double approve rejected after APPROVED",
+  "status": "PASS",
+  "detail": "{\"ok\":false,\"invoice_id\":null}"
+ },
+ {
+  "id": "CP-21",
+  "name": "Public view after approve shows APPROVED + sig path",
+  "status": "PASS",
+  "detail": "status=APPROVED sigpath=signatures/bf5b80d0-cc6a-4b73-9733-b80fee73c028/signature.png inv=linked"
+ },
+ {
+  "id": "CP-13x",
+  "name": "Signature object NOT actually required by RPC (fake URL accepted)",
+  "status": "FINDING",
+  "detail": "public GET=400 (NoSuchKey expected) but approve succeeded with fake URL -> server does not verify storage object exists"
+ },
+ {
+  "id": "CP-23",
+  "name": "Decline succeeds w/o signature",
+  "status": "PASS",
+  "detail": "{\"ok\":true,\"invoice_id\":null}"
+ },
+ {
+  "id": "CP-24",
+  "name": "REJECTED, no invoice generated",
+  "status": "PASS",
+  "detail": "{\"status\":\"REJECTED\",\"dp_invoice_id\":null}"
+ },
+ {
+  "id": "CP-25",
+  "name": "Respond after REJECTED blocked",
+  "status": "PASS",
+  "detail": "{\"ok\":false,\"invoice_id\":null}"
+ },
+ {
+  "id": "CP-11x",
+  "name": "Approve WITHOUT signature rejected by DB guard",
+  "status": "PASS",
+  "detail": "{\"code\":\"22023\",\"details\":null,\"hint\":null,\"message\":\"A valid proposal signature is required\"}"
+ },
+ {
+  "id": "CP-11y",
+  "name": "Approve with FOREIGN signature URL rejected",
+  "status": "PASS",
+  "detail": "{\"code\":\"22023\",\"details\":null,\"hint\":null,\"message\":\"A valid proposal signature is required\"}"
+ },
+ {
+  "id": "CP-x",
+  "name": "Invalid p_response handled gracefully",
+  "status": "PASS",
+  "detail": "HTTP 400 {\"code\":\"22023\",\"details\":null,\"hint\":null,\"message\":\"Unsupported proposal response\"}"
+ }
+]

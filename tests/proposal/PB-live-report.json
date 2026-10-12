@@ -1,0 +1,128 @@
+{
+  "module": "PB",
+  "mode": "LIVE",
+  "db": "https://ewmqsdctvpzmpvyzfqyo.supabase.co",
+  "ranAt": "2026-10-12T20:05:22.549Z",
+  "user": "nico@internal.app",
+  "totals": {
+    "tests": 19,
+    "pass": 12,
+    "findings": 7
+  },
+  "results": [
+    {
+      "id": "PB-01",
+      "name": "Happy path buat proposal DRAFT",
+      "status": "PASS",
+      "detail": "id=6d92744a-14e7-489c-a86f-c98e165c46ec token=aefb4950... status=DRAFT"
+    },
+    {
+      "id": "PB-02",
+      "name": "Perhitungan total & DP saat create",
+      "status": "PASS",
+      "detail": "total=12000000 (exp 12000000), dp=6000000 (exp 6000000)"
+    },
+    {
+      "id": "PB-03",
+      "name": "Addon required ter-select otomatis",
+      "status": "PASS",
+      "detail": "[{\"title\":\"SIT-PB req addon\",\"is_required\":true,\"is_selected\":true},{\"title\":\"SIT-PB opt addon\",\"is_required\":false,\"is_selected\":false}]"
+    },
+    {
+      "id": "PB-04",
+      "name": "Milestone sort order",
+      "status": "PASS",
+      "detail": "[{\"title\":\"M1 Design\",\"sort_order\":0},{\"title\":\"M2 Build\",\"sort_order\":1}]"
+    },
+    {
+      "id": "PB-05",
+      "name": "Validasi client wajib (server-side)",
+      "status": "FAIL-BY-DESIGN",
+      "detail": "DB menerima client_id=NULL. Validasi HANYA di UI. DEF-PB-D4 (info: kolom nullable by design utk free-text client?)"
+    },
+    {
+      "id": "PB-06",
+      "name": "Validasi title wajib (server-side)",
+      "status": "FAIL-BY-DESIGN",
+      "detail": "DB menerima title='' -- validasi hanya UI. id=e4adea68-40a0-4864-9e3b-e901680540c2"
+    },
+    {
+      "id": "PB-07",
+      "name": "Validasi base price / dot-thousands (PB-D1)",
+      "status": "FAIL-BY-DESIGN",
+      "detail": "parse('10.000.000')=NaN; setelah formatPriceInput=10. Ketik '10.000.000' di UI -> onChange menyimpan dots -> save mengirim 10 -> PROPOSAL TERSEDIA Rp10 tanpa error. KONFIRMASI PB-D1 HIGH (data corruption senyap)."
+    },
+    {
+      "id": "PB-07b",
+      "name": "Base price negatif di DB",
+      "status": "FAIL-BY-DESIGN",
+      "detail": "Tidak ada CHECK >= 0; nilai negatif tersimpan. Rekomendasi constraint."
+    },
+    {
+      "id": "PB-08",
+      "name": "DP% di luar 1-100 di DB",
+      "status": "FAIL-BY-DESIGN",
+      "detail": "DB menerima dp_percentage=101 -- validasi hanya UI."
+    },
+    {
+      "id": "PB-09",
+      "name": "Bank FK enforcement",
+      "status": "PASS",
+      "detail": "{\"code\":\"23503\",\"details\":\"Key is not present in table \\\"bank_accounts\\\".\",\"hint\":null,\"message\":\"insert or update on table \\\"proposals\\\" violates for"
+    },
+    {
+      "id": "PB-10",
+      "name": "WA agency wajib",
+      "status": "PASS(GUARD-VERIFIED)",
+      "detail": "WA terisi '6285697698001' -> negative branch tidak terpicu; guard block-submit diverifikasi by-code (line 166) + by-env (field ada di metadata). Tidak ada guard server-side utk insert langsung."
+    },
+    {
+      "id": "PB-11",
+      "name": "Addon tanpa judul diabaikan",
+      "status": "PASS(UI-FILTER)",
+      "detail": "Harness mereplikasi filter title.trim(): baris kosong TIDAK dikirim. Row addons di DB utk create normal = 2 (lihat PB-03). Filter confirmed in code line 170."
+    },
+    {
+      "id": "PB-12",
+      "name": "Snapshot bank dibekukan",
+      "status": "PASS",
+      "detail": "Kolom snapshot denormalized (name='BNI', acct='5315 1351 2') -- perubahan di bank_accounts tidak menyentuh row proposal. (No-op update disengaja agar data asli tidak berubah.)"
+    },
+    {
+      "id": "PB-13",
+      "name": "Rollback parsial + ON DELETE CASCADE",
+      "status": "PASS",
+      "detail": "addon orphan (proposal_id palsu): ditolak FK; delete parent -> children left A=0 M=0 (exp 0/0 CASCADE)"
+    },
+    {
+      "id": "PB-14",
+      "name": "Token unik, UUIDv4, UNIQUE constraint",
+      "status": "PASS",
+      "detail": "unique=true, uuidv4=true, dup-rejected=true ({\"code\":\"23505\",\"details\":null,\"hint\":null,\"message\":\"duplicate key value violat)"
+    },
+    {
+      "id": "PB-15",
+      "name": "Cancel tidak menyimpan",
+      "status": "PASS(UI-ONLY)",
+      "detail": "Cancel = Link navigasi, tidak ada request (by design). Baseline rows sekarang=9. Verifikasi penuh butuh browser E2E."
+    },
+    {
+      "id": "PB-16",
+      "name": "Double-submit proteksi",
+      "status": "FAIL-BY-DESIGN",
+      "detail": "2 insert paralel sama-sama sukses -> row kembar dibuat bila 2 tab/klik menembus state 'saving'. Proteksi hanya tombol disabled in-memory; tidak ada idempotency key / unique natural-key. DEF-PB-D5 LOW-MED."
+    },
+    {
+      "id": "ENV-01",
+      "name": "RPC proposal terekspos PostgREST",
+      "status": "BLOCKER",
+      "detail": "get_public_proposal/respond_to_proposal/update_proposal/ensure_proposal_dp_invoice TIDAK ada di schema cache (rpc count=0). Migration 0020-0028 belum diterapkan ke project ini -> modul PE/CP/SEC sebagian besar TIDAK bisa LIVE-test sampai db push."
+    },
+    {
+      "id": "ENV-02",
+      "name": "WA user metadata terisi",
+      "status": "PASS",
+      "detail": "user_metadata.agency_whatsapp_number='6285697698001' tersedia di JWT -> guard PB-10 tidak memblokir. Catatan desain tetap: WA per-user (metadata) padahal proposal per-workspace - dua workspace akan share nomor yang sama."
+    }
+  ]
+}
