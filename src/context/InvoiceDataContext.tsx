@@ -128,6 +128,7 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [companiesReady, setCompaniesReady] = useState(false);
   const [activeCompanyId, setActiveCompanyIdState] = useState<string | null>(null);
   const [view, setView] = useState<WorkspaceView | null>(null);
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
@@ -183,6 +184,7 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
   const hydrateUser = useCallback(
     async (authUser: User) => {
       setUser(authUser);
+      setCompaniesReady(false);
       let prof = await fetchUserProfile(authUser.id).catch(() => null);
       if (!prof) {
         const fallbackName = (authUser.email ?? "user").split("@")[0] || "user";
@@ -194,6 +196,7 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
       const list = await fetchUserCompanies();
       companiesRef.current = list;
       setCompanies(list);
+      setCompaniesReady(true);
 
       const stored = localStorage.getItem(ACTIVE_COMPANY_KEY);
       const nextActive = list.some((c) => c.id === stored) ? stored : list[0]?.id ?? null;
@@ -209,6 +212,7 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
   const resetAll = useCallback(() => {
     companiesRef.current = [];
     activeCompanyIdRef.current = null;
+    setCompaniesReady(false);
     setCompanies([]);
     setActiveCompanyIdState(null);
     setView(null);
@@ -518,7 +522,7 @@ export function InvoiceDataProvider({ children }: { children: ReactNode }) {
     activeCompany,
     activeCompanyId,
     isLoading: workspaceLoading,
-    needsOnboarding: authReady && !!user && !isSuperAdmin && companies.length === 0,
+    needsOnboarding: authReady && companiesReady && !!user && !isSuperAdmin && companies.length === 0,
 
     setActiveCompany,
     addCompany,

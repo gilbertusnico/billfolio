@@ -124,8 +124,8 @@ export default function AdminUsersPage() {
       setFormError("Username and password are both required.");
       return;
     }
-    if (draft.password.length < 12) {
-      setFormError("Password must be at least 12 characters.");
+    if (draft.password.length < 8) {
+      setFormError("Password must be at least 8 characters.");
       return;
     }
     setSaving(true);
@@ -150,8 +150,8 @@ export default function AdminUsersPage() {
       setFormError("Username can't be empty.");
       return;
     }
-    if (draft.password && draft.password.length < 12) {
-      setFormError("New password must be at least 12 characters.");
+    if (draft.password && draft.password.length < 8) {
+      setFormError("New password must be at least 8 characters.");
       return;
     }
     setSaving(true);
@@ -399,7 +399,7 @@ export default function AdminUsersPage() {
               autoComplete="new-password"
               value={draft.password}
               onChange={(e) => setDraft((d) => ({ ...d, password: e.target.value }))}
-              placeholder="At least 12 characters"
+              placeholder="At least 8 characters"
             />
           </div>
           <div>

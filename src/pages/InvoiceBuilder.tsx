@@ -716,7 +716,7 @@ export default function InvoiceBuilder() {
       {/* ---------------- Form column ---------------- */}
       <form
         onSubmit={(e) => e.preventDefault()}
-        className="min-w-0 space-y-5 pb-5"
+        className={`min-w-0 space-y-5 pb-5 ${showLivePreview ? "" : "mx-auto w-full max-w-4xl"}`}
         aria-label="Invoice form"
       >
         <fieldset disabled={isPaidInvoiceLocked} className="contents">
@@ -751,7 +751,7 @@ export default function InvoiceBuilder() {
         )}
 
         {isPaidInvoiceLocked && (
-          <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+          <div className="mb-5 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
             Payment verified — invoice ini sudah dibayar dan form telah terkunci untuk mencegah perubahan lebih lanjut.
           </div>

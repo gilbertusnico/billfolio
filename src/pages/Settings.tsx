@@ -223,8 +223,8 @@ export default function Settings() {
       setPwError("Enter a new password.");
       return;
     }
-    if (newPassword.length < 12) {
-      setPwError("Password must be at least 12 characters.");
+    if (newPassword.length < 8) {
+      setPwError("Password must be at least 8 characters.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -461,7 +461,7 @@ export default function Settings() {
               autoComplete="new-password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="At least 12 characters"
+              placeholder="At least 8 characters"
             />
           </div>
           <div className="sm:col-span-2">
